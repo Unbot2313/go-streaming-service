@@ -53,6 +53,36 @@ func (service *databaseVideoService) FindVideoByID(videoId string) (*models.Vide
 	return &video, nil
 }
 
+func (service *databaseVideoService) IncrementViews(videoId string) (*models.VideoModel, error) {
+	db, err := config.GetDB()
+
+	if err != nil {
+		return nil, err
+	}
+
+	var video models.VideoModel
+
+	dbCtx := db.Where("id = ?", videoId).First(&video)
+
+	if errors.Is(dbCtx.Error, gorm.ErrRecordNotFound) {
+		return nil, fmt.Errorf("video with id %s not found", videoId)
+	}
+
+	if dbCtx.Error != nil {
+		return nil, dbCtx.Error
+	}
+
+	video.Views++
+
+	dbCtx = db.Save(&video)
+
+	if dbCtx.Error != nil {
+		return nil, dbCtx.Error
+	}
+
+	return &video, nil
+}
+
 func (service *databaseVideoService) FindUserVideos(userId string) ([]*models.VideoModel, error) {
 	db, err := config.GetDB()
 
@@ -83,6 +113,8 @@ func (service *databaseVideoService) CreateVideo(videoData *models.Video, userId
 		Description: videoData.Description,
 		UserID: userId,
 		VideoUrl: videoData.M3u8FileURL,
+		Duration: videoData.Duration,
+		ThumbnailURL: videoData.ThumbnailURL,
 	}
 	
 	db, err := config.GetDB()
@@ -118,6 +150,7 @@ type databaseVideoService struct {}
 type DatabaseVideoService interface {
 	FindLatestVideos() (*[]*models.VideoModel, error)
 	FindVideoByID(videoId string) (*models.VideoModel, error) 
+	IncrementViews(videoId string) (*models.VideoModel, error)
 	FindUserVideos(userId string) ([]*models.VideoModel, error)
 	CreateVideo(video *models.Video, userId string) (*models.VideoModel, error)
 	UpdateVideo(video *models.VideoModel) (*models.VideoModel, error)

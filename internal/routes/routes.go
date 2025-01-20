@@ -32,6 +32,7 @@ func SetupRoutes(router *gin.RouterGroup, userController controllers.UserControl
 		// Rutas públicas
         VideoRoutes.GET("/latest", videoController.GetLatestVideos)
 		VideoRoutes.GET("/id/:videoid", videoController.GetVideoByID)
+		VideoRoutes.PATCH("/views/:videoid", videoController.IncrementViews)
 
 		// Ruta protegida
         ProtectedRoute.POST("/upload", videoController.CreateVideo)

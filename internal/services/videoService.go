@@ -1,9 +1,12 @@
 package services
 
 import (
+	"encoding/json"
 	"fmt"
+	"math"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -22,26 +25,15 @@ var validVideoExtensions = []string{
 	".mp4", ".webm", ".avi", ".mkv", ".mov", ".wmv", ".flv", ".3gp",
 }
 
-type videoServiceImp struct{
-	S3configuration S3Configuration
-	FilesService FilesService
-}
-
 type VideoService interface {
 	SaveVideo(c *gin.Context) (*models.Video, error)
 	FormatVideo(videoName string) (string, error) 
-	UploadFilesFromFolderToS3(folder string) (string, string, error)
+	UploadFilesFromFolderToS3(folder string) (importantFiles, string, error)
 	DeleteS3Folder(folderName string) error
 	GetFilesService() FilesService // Nuevo método para acceder a FilesService
 	IsValidVideoExtension(c *gin.Context) bool
 }
 
-func NewVideoService(S3Configuration S3Configuration, filesService FilesService) VideoService {
-	return &videoServiceImp{
-		S3configuration: S3Configuration,
-		FilesService: filesService,
-	}
-}
 
 func (vs *videoServiceImp) IsValidVideoExtension(c *gin.Context) bool {
 
@@ -97,6 +89,12 @@ func (vs *videoServiceImp) SaveVideo(c *gin.Context) (*models.Video, error) {
 		return nil, fmt.Errorf("error al guardar el archivo: %w", err)
 	}
 
+	// Obtener la duración del video
+	duration, err := getVideoDuration(savePath)
+	if err != nil {
+		return nil, fmt.Errorf("error al obtener la duración del video: %w", err)
+	}
+
 	videoData := &models.Video{
 		Id: 			uuid,
 		Title:    		title,
@@ -104,6 +102,7 @@ func (vs *videoServiceImp) SaveVideo(c *gin.Context) (*models.Video, error) {
 		Video: 	 		header.Filename,
 		LocalPath: 	 	savePath,
 		UniqueName: 	uniqueName,
+		Duration: 		duration,
 	}
 
 	return videoData, nil
@@ -139,4 +138,84 @@ func (vs *videoServiceImp) FormatVideo(VideoName string) (string, error) {
 
 }
 
+func NewVideoService(S3Configuration S3Configuration, filesService FilesService) VideoService {
+	return &videoServiceImp{
+		S3configuration: S3Configuration,
+		FilesService: filesService,
+	}
+}
 
+type videoServiceImp struct{
+	S3configuration S3Configuration
+	FilesService FilesService
+}
+
+// Función para obtener la duración del video usando go-ffprobe
+type FFProbeOutput struct {
+    Format struct {
+        Duration string `json:"duration"`
+    } `json:"format"`
+}
+
+func formatDuration(seconds float64) string {
+    // Si es menos de 60 segundos, retornar solo segundos
+    if seconds < 60 {
+        return fmt.Sprintf("%.0fs", seconds)
+    }
+    
+    // Calcular minutos y segundos
+    minutes := math.Floor(seconds / 60)
+    remainingSeconds := math.Round(seconds - (minutes * 60))
+    
+    return fmt.Sprintf("%.0f:%.0f", minutes, remainingSeconds)
+}
+
+func getVideoDuration(videoPath string) (string, error) {
+    // Construir el comando ffprobe
+    cmd := exec.Command("ffprobe",
+        "-v", "quiet",
+        "-print_format", "json",
+        "-show_format",
+        videoPath)
+
+    // Ejecutar el comando y obtener la salida
+    output, err := cmd.Output()
+    if err != nil {
+        return "", fmt.Errorf("error ejecutando ffprobe: %v", err)
+    }
+
+    // Parsear la salida JSON
+    var ffprobeOutput FFProbeOutput
+    if err := json.Unmarshal(output, &ffprobeOutput); err != nil {
+        return "", fmt.Errorf("error parseando la salida de ffprobe: %v", err)
+    }
+
+    // Convertir la duración a float64
+    seconds, err := strconv.ParseFloat(ffprobeOutput.Format.Duration, 64)
+    if err != nil {
+        return "", fmt.Errorf("error convirtiendo la duración a número: %v", err)
+    }
+
+    return formatDuration(seconds), nil
+}
+
+func SaveThumbnail(videoPath string, folderPath string) (string, error) {
+    thumbnailName := fmt.Sprintf("%s.webp", "thumbnail")
+    thumbnailPath := filepath.Join(folderPath, thumbnailName)
+
+    // El cambio principal está en mover -ss antes de -i
+    cmd := exec.Command("ffmpeg",
+        "-ss", "00:00:08",      // MOVIDO: colocar antes de -i
+        "-i", videoPath,         // archivo de entrada
+        "-frames:v", "1",        // usar frames:v en lugar de vframes
+        "-vf", "scale=480:-1",   
+        "-y",                   
+        thumbnailPath,          
+    )
+
+    if output, err := cmd.CombinedOutput(); err != nil {
+        return "", fmt.Errorf("error generando miniatura: %w, output: %s", err, string(output))
+    }
+
+    return thumbnailPath, nil
+}

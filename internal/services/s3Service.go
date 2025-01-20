@@ -18,17 +18,28 @@ import (
 	"github.com/unbot2313/go-streaming-service/config"
 )
 
-func (s3Service *videoServiceImp) UploadFilesFromFolderToS3(folder string) (string, string, error) {
+type importantFiles struct {
+	M3u8FileURL string
+	ThumbnailURL string
+}
+
+func (s3Service *videoServiceImp) UploadFilesFromFolderToS3(folder string) (
+	importantFiles,
+	string,
+	error,
+) {
 
 	// Obtener el nombre de la carpeta actual
 	baseFolder := filepath.Base(folder)
 
 	var m3u8FileURL string
 
+	var thumbnailURL string
+
 	files, err := os.ReadDir(folder)
 
 	if err != nil {
-		return "", baseFolder, err
+		return importantFiles{}, baseFolder, err
 	}
 
 	for _, file := range files {
@@ -39,7 +50,7 @@ func (s3Service *videoServiceImp) UploadFilesFromFolderToS3(folder string) (stri
 		filePath := filepath.Join(folder, file.Name())
 		f, err := os.Open(filePath)
 		if err != nil {
-			return "", baseFolder, err
+			return importantFiles{}, baseFolder, err
 		}
 		defer f.Close()
 
@@ -55,7 +66,7 @@ func (s3Service *videoServiceImp) UploadFilesFromFolderToS3(folder string) (stri
 		})
 
 		if errS3 != nil {
-			return "", baseFolder, errS3
+			return importantFiles{}, baseFolder, errS3
 		}
 
 		 // Si es un archivo m3u8, guarda su URL para la base de datos
@@ -63,13 +74,20 @@ func (s3Service *videoServiceImp) UploadFilesFromFolderToS3(folder string) (stri
             m3u8FileURL = result.Location
         }
 
+		if strings.HasSuffix(file.Name(), ".webp") {
+			thumbnailURL = result.Location
+		}
+
 	}
 
 	if m3u8FileURL == "" {
-        return "", baseFolder, fmt.Errorf("no se encontró el archivo .m3u8")
+		return importantFiles{}, baseFolder, fmt.Errorf("no se encontró el archivo .m3u8")
     }
 	
-	return m3u8FileURL, baseFolder, nil
+	return importantFiles{
+		M3u8FileURL: m3u8FileURL,
+		ThumbnailURL: thumbnailURL,
+	}, baseFolder, nil
 }
 
 // DeleteFolder eliminará todos los objetos dentro de la "carpeta" especificada.
