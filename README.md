@@ -59,10 +59,7 @@ In case of change the documentation make that:
 
 ## Features
 
-- Manejar URL de AWS para devolver el contenido(videos)
-- Devolver los videos existentes y su contenido
 - RefreshTokens
 - Manejar transmision en vivos
-- Agregar el middleware de Auth a las rutas de streaming (middleware ya hecho)
 - Terminar el README.md
 - Optimizar el dockerFile
