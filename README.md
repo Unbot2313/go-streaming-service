@@ -59,6 +59,7 @@ In case of change the documentation make that:
 
 ## Features
 
+- Manejar la carga de videos usando algun servicio de background jobs e implementar su visualizacion de progreso
 - RefreshTokens
 - Manejar transmision en vivos
 - Terminar el README.md
