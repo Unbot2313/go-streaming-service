@@ -1,19 +1,25 @@
 package services
 
 import (
+	"context"
 	"fmt"
 	"log"
+	"time"
 
 	"github.com/unbot2313/go-streaming-service/config"
 	amqp "github.com/rabbitmq/amqp091-go"
 )
+
+// MessageHandler es una función que procesa un mensaje recibido
+// Retorna error si el procesamiento falla (el mensaje será reenviado)
+type MessageHandler func(message []byte) error
 
 // RabbitMQService define la interfaz para comunicarse con RabbitMQ
 type RabbitMQService interface {
 	Connect() error
 	Close()
 	Publish(queueName string, message []byte) error
-	Consume(queueName string) error
+	Consume(queueName string, handler MessageHandler) error
 }
 
 // RabbitMQServiceImp es la implementación del servicio
@@ -25,13 +31,6 @@ type RabbitMQServiceImp struct {
 // NewRabbitMQService crea una nueva instancia del servicio
 func NewRabbitMQService() RabbitMQService {
 	return &RabbitMQServiceImp{}
-}
-
-// failOnError maneja los errores de RabbitMQ usando log
-func failOnError(err error, msg string) {
-	if err != nil {
-		log.Panicf("%s: %s", msg, err)
-	}
 }
 
 // logError registra errores sin detener la ejecución
@@ -84,12 +83,12 @@ func (r *RabbitMQServiceImp) Close() {
 	log.Println("Conexión a RabbitMQ cerrada")
 }
 
-// Publish envía un mensaje a una cola
+// Publish envía un mensaje a una cola con persistencia
 func (r *RabbitMQServiceImp) Publish(queueName string, message []byte) error {
-	// Declarar la cola (se crea si no existe)
+	// Declarar la cola durable (sobrevive reinicios de RabbitMQ)
 	queue, err := r.channel.QueueDeclare(
 		queueName, // nombre
-		false,     // durable: la cola NO sobrevive al reinicio del servidor
+		true,      // durable: la cola sobrevive al reinicio del servidor
 		false,     // autoDelete: NO se elimina cuando no hay consumidores
 		false,     // exclusive: NO es exclusiva de esta conexión
 		false,     // noWait: esperar confirmación del servidor
@@ -99,15 +98,21 @@ func (r *RabbitMQServiceImp) Publish(queueName string, message []byte) error {
 		return err
 	}
 
-	// Publicar mensaje
-	err = r.channel.Publish(
+	// Context con timeout de 5 segundos
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Publicar mensaje con persistencia
+	err = r.channel.PublishWithContext(
+		ctx,
 		"",         // exchange: usamos el exchange por defecto
 		queue.Name, // routing key: nombre de la cola
 		false,      // mandatory: NO requerir que exista una cola
 		false,      // immediate: NO requerir un consumidor activo
 		amqp.Publishing{
-			ContentType: "text/plain",
-			Body:        message,
+			DeliveryMode: amqp.Persistent, // Mensaje persistente (guardado en disco)
+			ContentType:  "text/plain",
+			Body:         message,
 		},
 	)
 	if logError(err, "Error al publicar mensaje") {
@@ -118,27 +123,40 @@ func (r *RabbitMQServiceImp) Publish(queueName string, message []byte) error {
 	return nil
 }
 
-// Consume escucha mensajes de una cola y los loguea
-func (r *RabbitMQServiceImp) Consume(queueName string) error {
-	// Declarar la cola
+// Consume escucha mensajes de una cola y los procesa con el handler proporcionado
+// El handler debe retornar nil si el procesamiento fue exitoso, o error si falló
+// Si el handler falla, el mensaje será reenviado a otro worker (Nack)
+func (r *RabbitMQServiceImp) Consume(queueName string, handler MessageHandler) error {
+	// Declarar la cola durable (debe coincidir con el publisher)
 	queue, err := r.channel.QueueDeclare(
 		queueName,
-		false,
-		false,
-		false,
-		false,
-		nil,
+		true,  // durable: la cola sobrevive al reinicio del servidor
+		false, // autoDelete
+		false, // exclusive
+		false, // noWait
+		nil,   // arguments
 	)
 	if logError(err, "Error al declarar la cola") {
 		return err
 	}
 
-	// Registrar consumidor
+	// Configurar QoS: solo recibir 1 mensaje a la vez
+	// Esto distribuye el trabajo equitativamente entre workers
+	err = r.channel.Qos(
+		1,     // prefetch count: procesar 1 mensaje a la vez
+		0,     // prefetch size: sin límite de bytes
+		false, // global: aplica solo a este consumer
+	)
+	if logError(err, "Error al configurar QoS") {
+		return err
+	}
+
+	// Registrar consumidor con acknowledgment manual
 	messages, err := r.channel.Consume(
 		queue.Name, // cola
 		"",         // consumer: nombre vacío = generado automáticamente
-		true,       // autoAck: confirmar automáticamente los mensajes
-		false,      // exclusive: NO exclusivo
+		false,      // autoAck: FALSE - confirmaremos manualmente después de procesar
+		false,      // exclusive: NO exclusivo (permite múltiples workers)
 		false,      // noLocal: permitir mensajes del mismo conexión
 		false,      // noWait: esperar confirmación
 		nil,        // arguments
@@ -147,12 +165,25 @@ func (r *RabbitMQServiceImp) Consume(queueName string) error {
 		return err
 	}
 
-	log.Printf("Esperando mensajes en cola '%s'...", queueName)
+	log.Printf("Worker esperando mensajes en cola '%s'...", queueName)
 
 	// Escuchar mensajes en un goroutine
 	go func() {
 		for msg := range messages {
 			log.Printf("Mensaje recibido de '%s': %s", queueName, string(msg.Body))
+
+			// Procesar el mensaje con el handler
+			err := handler(msg.Body)
+
+			if err != nil {
+				// Si el procesamiento falla, rechazar el mensaje y reencolarlo
+				log.Printf("Error procesando mensaje: %s - Reencolando...", err)
+				msg.Nack(false, true) // multiple=false, requeue=true
+			} else {
+				// Si el procesamiento fue exitoso, confirmar el mensaje
+				log.Printf("Mensaje procesado exitosamente")
+				msg.Ack(false) // multiple=false
+			}
 		}
 	}()
 
