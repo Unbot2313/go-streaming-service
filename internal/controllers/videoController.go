@@ -86,103 +86,119 @@ func (vc *VideoControllerImpl) IncrementViews(c *gin.Context) {
 	
 }
 
-// SaveVideo		godoc
-// @Summary 		Save a video
-// @Description 	Upload a video file along with metadata (title and description) and save to the AWS bucket.
+// CreateVideo godoc
+// @Summary 		Upload a video for processing
+// @Description 	Upload a video file and queue it for async processing. Returns a job ID to track progress.
 // @Tags 			streaming
 // @Accept 			multipart/form-data
 // @Produce 		json
 // @Param 			title formData string true "Video Title"
 // @Param 			description formData string false "Video Description"
 // @Param 			video formData file true "Video File"
-// @Success 		200 {object} models.VideoSwagger{}
+// @Success 		202 {object} models.JobSwagger{}
 // @Failure 		400 {object} map[string]string
 // @Failure 		500 {object} map[string]string
 // @Router 			/streaming/upload [post]
 func (vc *VideoControllerImpl) CreateVideo(c *gin.Context) {
+	cfg := config.GetConfig()
 
-	// Recuperar el usuario del contexto
+	// 1. Recuperar el usuario del contexto (del middleware JWT)
 	user, exists := c.Get("user")
 	if !exists {
 		c.JSON(500, gin.H{"error": "User not found in context"})
 		return
 	}
 
-	// Convertir a tipo User
 	authenticatedUser, ok := user.(*models.User)
 	if !ok {
 		c.JSON(500, gin.H{"error": "Failed to parse user data"})
 		return
 	}
 
-	// verificar si el archivo es válido
+	// 2. Validar extensión del archivo
 	if !vc.videoService.IsValidVideoExtension(c) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "El archivo no es un tipo de video válido."})
 		return
 	}
 
+	// 3. Validar tamaño del archivo (máx 100MB)
 	fileSize := c.Request.ContentLength
-	const maxFileSize = 100 * 1024 * 1024 // 100 MB
+	const maxFileSize = 100 * 1024 * 1024
 	if fileSize > maxFileSize {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "El archivo excede el límite de tamaño permitido."})
 		return
 	}
 
-	// guardar archivo en local
+	// 4. Guardar archivo en local (rápido)
+	// TODO: Agregar compresión de video antes de encolar
 	videoData, err := vc.videoService.SaveVideo(c)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	// borrar el archivo original
-	defer vc.videoService.GetFilesService().RemoveFile(videoData.LocalPath)
+	// 5. Crear Job en DB con status "pending"
+	job := &models.Job{
+		Id:          videoData.Id,
+		UserID:      authenticatedUser.Id,
+		Status:      "pending",
+		LocalPath:   videoData.LocalPath,
+		UniqueName:  videoData.UniqueName,
+		Title:       videoData.Title,
+		Description: videoData.Description,
+	}
 
-	// comprimir el video
-	// pendiente
-
-	//pasar a archivos .ts y .m3u8 con ffmpeg y guardarlo en local
-	filesPath, err := vc.videoService.FormatVideo(videoData.UniqueName)
+	createdJob, err := vc.jobService.CreateJob(job)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		// Si falla crear el job, limpiar el video local
+		vc.videoService.GetFilesService().RemoveFile(videoData.LocalPath)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al crear job: " + err.Error()})
 		return
 	}
 
-	// borrar archivos locales .ts y .m3u8
-	defer vc.videoService.GetFilesService().RemoveFolder(filesPath)
-
-	// generar miniatura del segundo 1 del video
-	_, err = services.SaveThumbnail(videoData.LocalPath, filesPath)
+	// 6. Conectar a RabbitMQ
+	err = vc.rabbitMQService.Connect()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		vc.jobService.UpdateJobStatus(createdJob.Id, "failed", "Error conectando a RabbitMQ")
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error conectando a cola de procesamiento"})
+		return
+	}
+	defer vc.rabbitMQService.Close()
+
+	// 7. Crear y serializar tarea para la cola
+	videoTask := models.VideoTask{
+		JobID:       createdJob.Id,
+		UserID:      authenticatedUser.Id,
+		LocalPath:   videoData.LocalPath,
+		UniqueName:  videoData.UniqueName,
+		Title:       videoData.Title,
+		Description: videoData.Description,
+	}
+
+	taskJSON, err := json.Marshal(videoTask)
+	if err != nil {
+		vc.jobService.UpdateJobStatus(createdJob.Id, "failed", "Error serializando tarea")
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error preparando tarea"})
 		return
 	}
 
-	// subir el video a s3
-	savedDataInS3, baseFolder, err := vc.videoService.UploadFilesFromFolderToS3(filesPath)
+	// 8. Publicar tarea a la cola de video
+	err = vc.rabbitMQService.Publish(cfg.RabbitMQVideoQueue, taskJSON)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		vc.jobService.UpdateJobStatus(createdJob.Id, "failed", "Error publicando a cola")
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error encolando tarea"})
 		return
 	}
 
+	log.Printf("[x] Video encolado: job_id=%s, file=%s", createdJob.Id, videoData.UniqueName)
 
-	// TODO: que es esto y porque 
-	videoData.M3u8FileURL = savedDataInS3.M3u8FileURL
-	videoData.ThumbnailURL = savedDataInS3.ThumbnailURL
-	
-	// finalmente, guardar la url del video en la base de datos
-	Video, err := vc.databaseVideoService.CreateVideo(videoData, authenticatedUser.Id)
-	if err != nil {
-
-		// como el video no se guardó en la base de datos, se debe borrar de s3
-		// como folder/
-		defer vc.videoService.DeleteS3Folder(baseFolder + "/")
-
-		c.JSON(400, gin.H{"error": err.Error()})
-		return
-	}
-
-	c.JSON(http.StatusOK, Video)
+	// 9. Responder inmediatamente con el job_id
+	// NOTA: La limpieza de archivos locales la hace el WORKER después de procesar
+	c.JSON(http.StatusAccepted, gin.H{
+		"job_id":  createdJob.Id,
+		"status":  createdJob.Status,
+		"message": "Video en cola de procesamiento. Consulta GET /jobs/" + createdJob.Id,
+	})
 }
 
 type VideoControllerImpl struct {
