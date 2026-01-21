@@ -27,10 +27,12 @@ type Config struct {
 	PostgresPassword string
 	PostgresDBName	 string
 
-	RabbitMQHost     string
-	RabbitMQPort     string
-	RabbitMQUser     string
-	RabbitMQPassword string
+	RabbitMQHost           string
+	RabbitMQPort           string
+	RabbitMQUser           string
+	RabbitMQPassword       string
+	RabbitMQVideoQueue     string
+	RabbitMQThumbnailQueue string
 }
 
 
@@ -69,10 +71,12 @@ func GetConfig() *Config {
 			PostgresPassword: getEnv("POSTGRES_PASSWORD", "postgres"),
 			PostgresDBName: getEnv("POSTGRES_DBNAME", "golang"),
 
-			RabbitMQHost:     getEnv("RABBITMQ_HOST", "localhost"),
-			RabbitMQPort:     getEnv("RABBITMQ_PORT", "5672"),
-			RabbitMQUser:     getEnv("RABBITMQ_USER", "guest"),
-			RabbitMQPassword: getEnv("RABBITMQ_PASSWORD", "guest"),
+			RabbitMQHost:           getEnv("RABBITMQ_HOST", "localhost"),
+			RabbitMQPort:           getEnv("RABBITMQ_PORT", "5672"),
+			RabbitMQUser:           getEnv("RABBITMQ_USER", "guest"),
+			RabbitMQPassword:       getEnv("RABBITMQ_PASSWORD", "guest"),
+			RabbitMQVideoQueue:     getEnv("RABBITMQ_VIDEO_QUEUE", "video_processing"),
+			RabbitMQThumbnailQueue: getEnv("RABBITMQ_THUMBNAIL_QUEUE", "thumbnail_generation"),
 		}
 	})
 
