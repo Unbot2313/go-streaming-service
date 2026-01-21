@@ -32,6 +32,18 @@ func (JobModel) TableName() string {
 	return "jobs"
 }
 
+// JobSwagger es el modelo para documentación Swagger
+type JobSwagger struct {
+	Id           string `json:"id" example:"550e8400-e29b-41d4-a716-446655440000"`
+	VideoID      string `json:"video_id" example:""`
+	UserID       string `json:"user_id" example:"550e8400-e29b-41d4-a716-446655440001"`
+	Status       string `json:"status" example:"pending" enums:"pending,processing,completed,failed"`
+	Title        string `json:"title" example:"Mi Video"`
+	Description  string `json:"description" example:"Descripcion del video"`
+	ErrorMessage string `json:"error_message,omitempty" example:""`
+	Message      string `json:"message,omitempty" example:"Video en cola de procesamiento"`
+}
+
 // VideoTask es la estructura del mensaje enviado a RabbitMQ
 type VideoTask struct {
 	JobID       string `json:"job_id"`
