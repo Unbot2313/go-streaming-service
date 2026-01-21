@@ -26,6 +26,11 @@ type Config struct {
 	PostgresUser	 string
 	PostgresPassword string
 	PostgresDBName	 string
+
+	RabbitMQHost     string
+	RabbitMQPort     string
+	RabbitMQUser     string
+	RabbitMQPassword string
 }
 
 
@@ -63,6 +68,11 @@ func GetConfig() *Config {
 			PostgresUser: getEnv("POSTGRES_USER", "postgres"),
 			PostgresPassword: getEnv("POSTGRES_PASSWORD", "postgres"),
 			PostgresDBName: getEnv("POSTGRES_DBNAME", "golang"),
+
+			RabbitMQHost:     getEnv("RABBITMQ_HOST", "localhost"),
+			RabbitMQPort:     getEnv("RABBITMQ_PORT", "5672"),
+			RabbitMQUser:     getEnv("RABBITMQ_USER", "guest"),
+			RabbitMQPassword: getEnv("RABBITMQ_PASSWORD", "guest"),
 		}
 	})
 
