@@ -14,6 +14,19 @@ services:
       - postgres_data:/var/lib/postgresql/data # Persistencia de datos
     restart: always
 
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: rabbitmq_container
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD}
+    ports:
+      - "5672:5672"   # AMQP
+      - "15672:15672" # Management UI
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    restart: always
+
   app:
     build:
       context: .
@@ -29,11 +42,17 @@ services:
       DB_USER: ${POSTGRES_USER}
       DB_PASSWORD: ${POSTGRES_PASSWORD}
       DB_NAME: ${POSTGRES_DB}
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_USER: ${RABBITMQ_USER}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD}
     depends_on:
       - postgres
+      - rabbitmq
     volumes:
       - .:/app
     command: ["go", "run", "main.go"] # Comando para INICIAR EL SERVIDOR
 
 volumes:
   postgres_data:
+  rabbitmq_data:
