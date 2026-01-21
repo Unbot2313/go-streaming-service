@@ -1,9 +1,12 @@
 package controllers
 
 import (
+	"encoding/json"
+	"log"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/unbot2313/go-streaming-service/config"
 	"github.com/unbot2313/go-streaming-service/internal/models"
 	"github.com/unbot2313/go-streaming-service/internal/services"
 )
@@ -183,13 +186,17 @@ func (vc *VideoControllerImpl) CreateVideo(c *gin.Context) {
 }
 
 type VideoControllerImpl struct {
-	videoService services.VideoService;
+	videoService         services.VideoService
 	databaseVideoService services.DatabaseVideoService
+	jobService           services.JobService
+	rabbitMQService      services.RabbitMQService
 }
 
-func NewVideoController(videoService services.VideoService, databaseVideoService services.DatabaseVideoService) VideoController {
+func NewVideoController(videoService services.VideoService, databaseVideoService services.DatabaseVideoService, jobService services.JobService, rabbitMQService services.RabbitMQService) VideoController {
 	return &VideoControllerImpl{
-		videoService: videoService,
+		videoService:         videoService,
 		databaseVideoService: databaseVideoService,
+		jobService:           jobService,
+		rabbitMQService:      rabbitMQService,
 	}
 }
