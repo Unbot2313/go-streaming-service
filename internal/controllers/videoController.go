@@ -162,6 +162,8 @@ func (vc *VideoControllerImpl) CreateVideo(c *gin.Context) {
 		return
 	}
 
+
+	// TODO: que es esto y porque 
 	videoData.M3u8FileURL = savedDataInS3.M3u8FileURL
 	videoData.ThumbnailURL = savedDataInS3.ThumbnailURL
 	
