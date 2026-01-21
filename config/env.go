@@ -69,7 +69,7 @@ func GetConfig() *Config {
 			PostgresPort: getEnv("POSTGRES_PORT", "5432"),
 			PostgresUser: getEnv("POSTGRES_USER", "postgres"),
 			PostgresPassword: getEnv("POSTGRES_PASSWORD", "postgres"),
-			PostgresDBName: getEnv("POSTGRES_DBNAME", "golang"),
+			PostgresDBName: getEnv("POSTGRES_DB", "golang"),
 
 			RabbitMQHost:           getEnv("RABBITMQ_HOST", "localhost"),
 			RabbitMQPort:           getEnv("RABBITMQ_PORT", "5672"),
