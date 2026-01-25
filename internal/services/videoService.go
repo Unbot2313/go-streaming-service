@@ -14,6 +14,7 @@ import (
 
 	"github.com/unbot2313/go-streaming-service/config"
 	"github.com/unbot2313/go-streaming-service/internal/models"
+	"github.com/unbot2313/go-streaming-service/internal/services/storage"
 )
 
 var (
@@ -27,10 +28,10 @@ var validVideoExtensions = []string{
 
 type VideoService interface {
 	SaveVideo(c *gin.Context) (*models.Video, error)
-	FormatVideo(videoName string) (string, error) 
-	UploadFilesFromFolderToS3(folder string) (importantFiles, string, error)
-	DeleteS3Folder(folderName string) error
-	GetFilesService() FilesService // Nuevo método para acceder a FilesService
+	FormatVideo(videoName string) (string, error)
+	UploadFolder(folder string) (storage.UploadResult, error)
+	DeleteFolder(folderName string) error
+	GetFilesService() FilesService
 	IsValidVideoExtension(c *gin.Context) bool
 }
 
@@ -138,16 +139,26 @@ func (vs *videoServiceImp) FormatVideo(VideoName string) (string, error) {
 
 }
 
-func NewVideoService(S3Configuration S3Configuration, filesService FilesService) VideoService {
+func NewVideoService(storageService storage.StorageService, filesService FilesService) VideoService {
 	return &videoServiceImp{
-		S3configuration: S3Configuration,
-		FilesService: filesService,
+		StorageService: storageService,
+		FilesService:   filesService,
 	}
 }
 
-type videoServiceImp struct{
-	S3configuration S3Configuration
-	FilesService FilesService
+type videoServiceImp struct {
+	StorageService storage.StorageService
+	FilesService   FilesService
+}
+
+// UploadFolder delega al StorageService para subir archivos
+func (vs *videoServiceImp) UploadFolder(folder string) (storage.UploadResult, error) {
+	return vs.StorageService.UploadFolder(folder)
+}
+
+// DeleteFolder delega al StorageService para eliminar archivos
+func (vs *videoServiceImp) DeleteFolder(folderName string) error {
+	return vs.StorageService.DeleteFolder(folderName)
 }
 
 // Función para obtener la duración del video usando go-ffprobe

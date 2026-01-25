@@ -3,6 +3,7 @@ package app
 import (
 	"github.com/unbot2313/go-streaming-service/internal/controllers"
 	"github.com/unbot2313/go-streaming-service/internal/services"
+	"github.com/unbot2313/go-streaming-service/internal/services/storage"
 )
 
 // InitializeComponents crea las instancias de los servicios y controladores
@@ -15,10 +16,10 @@ func InitializeComponents() (controllers.UserController, controllers.AuthControl
 	userController := controllers.NewUserController(userService)
 	authController := controllers.NewAuthController(authService)
 
-	// Inicializa servicios de video
-	S3configuration := services.GetS3Configuration()
+	// Inicializa servicios de video con StorageService genérico
+	storageService := storage.NewStorageService()
 	filesService := services.NewFilesService()
-	videoService := services.NewVideoService(S3configuration, filesService)
+	videoService := services.NewVideoService(storageService, filesService)
 	databaseVideoService := services.NewDatabaseVideoService()
 
 	// Inicializa servicios de jobs y RabbitMQ

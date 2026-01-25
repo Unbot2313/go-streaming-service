@@ -27,6 +27,20 @@ services:
       - rabbitmq_data:/var/lib/rabbitmq
     restart: always
 
+  minio:
+    image: minio/minio
+    container_name: minio_container
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY}
+    ports:
+      - "9000:9000"   # API
+      - "9001:9001"   # Console
+    volumes:
+      - minio_data:/data
+    command: server /data --console-address ":9001"
+    restart: always
+
   app:
     build:
       context: .
@@ -56,3 +70,4 @@ services:
 volumes:
   postgres_data:
   rabbitmq_data:
+  minio_data:

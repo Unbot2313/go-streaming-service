@@ -8,6 +8,7 @@ import (
 	"github.com/unbot2313/go-streaming-service/config"
 	"github.com/unbot2313/go-streaming-service/internal/models"
 	"github.com/unbot2313/go-streaming-service/internal/services"
+	"github.com/unbot2313/go-streaming-service/internal/services/storage"
 )
 
 // Servicios globales para el worker
@@ -52,8 +53,8 @@ func main() {
 func initServices() {
 	jobService = services.NewJobService()
 	filesService = services.NewFilesService()
-	S3configuration := services.GetS3Configuration()
-	videoService = services.NewVideoService(S3configuration, filesService)
+	storageService := storage.NewStorageService()
+	videoService = services.NewVideoService(storageService, filesService)
 	databaseVideoService = services.NewDatabaseVideoService()
 
 	log.Println("[*] Servicios inicializados")
@@ -95,12 +96,12 @@ func processVideoTask(message []byte) error {
 		return err
 	}
 
-	// 5. Subir a S3
-	log.Printf("[.] Subiendo a S3...")
-	savedDataInS3, baseFolder, err := videoService.UploadFilesFromFolderToS3(filesPath)
+	// 5. Subir a storage (S3 o MinIO según configuración)
+	log.Printf("[.] Subiendo a storage...")
+	uploadResult, err := videoService.UploadFolder(filesPath)
 	if err != nil {
-		log.Printf("[!] Error subiendo a S3: %s", err)
-		jobService.UpdateJobStatus(task.JobID, "failed", "Error subiendo a S3: "+err.Error())
+		log.Printf("[!] Error subiendo a storage: %s", err)
+		jobService.UpdateJobStatus(task.JobID, "failed", "Error subiendo a storage: "+err.Error())
 		filesService.RemoveFolder(filesPath)
 		return err
 	}
@@ -111,16 +112,16 @@ func processVideoTask(message []byte) error {
 		Id:           task.JobID, // Usamos el mismo ID del job para el video
 		Title:        task.Title,
 		Description:  task.Description,
-		M3u8FileURL:  savedDataInS3.M3u8FileURL,
-		ThumbnailURL: savedDataInS3.ThumbnailURL,
+		M3u8FileURL:  uploadResult.M3u8FileURL,
+		ThumbnailURL: uploadResult.ThumbnailURL,
 	}
 
 	_, err = databaseVideoService.CreateVideo(videoData, task.UserID)
 	if err != nil {
 		log.Printf("[!] Error guardando en DB: %s", err)
 		jobService.UpdateJobStatus(task.JobID, "failed", "Error guardando en DB: "+err.Error())
-		// Borrar de S3 si falla
-		videoService.DeleteS3Folder(baseFolder + "/")
+		// Borrar de storage si falla
+		videoService.DeleteFolder(uploadResult.BaseFolder + "/")
 		filesService.RemoveFolder(filesPath)
 		return err
 	}
