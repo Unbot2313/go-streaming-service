@@ -112,6 +112,7 @@ func processVideoTask(message []byte) error {
 		Id:           task.JobID, // Usamos el mismo ID del job para el video
 		Title:        task.Title,
 		Description:  task.Description,
+		Duration:     task.Duration,
 		M3u8FileURL:  uploadResult.M3u8FileURL,
 		ThumbnailURL: uploadResult.ThumbnailURL,
 	}

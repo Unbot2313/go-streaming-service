@@ -18,6 +18,12 @@ type VideoController interface {
 	IncrementViews(c *gin.Context)
 }
 
+// CreateVideoRequest valida los campos del formulario de upload
+type CreateVideoRequest struct {
+	Title       string `form:"title" binding:"required,min=1,max=100"`
+	Description string `form:"description" binding:"max=500"`
+}
+
 // SaveVideo		godoc
 // @Summary 		Save a video
 // @Description 	Upload a video file along with metadata (title and description) and save it to the AWS bucket.
@@ -115,13 +121,20 @@ func (vc *VideoControllerImpl) CreateVideo(c *gin.Context) {
 		return
 	}
 
-	// 2. Validar extensión del archivo
+	// 2. Validar campos requeridos (title obligatorio)
+	var req CreateVideoRequest
+	if err := c.ShouldBind(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "title es requerido (máx 100 caracteres)"})
+		return
+	}
+
+	// 3. Validar extensión del archivo
 	if !vc.videoService.IsValidVideoExtension(c) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "El archivo no es un tipo de video válido."})
 		return
 	}
 
-	// 3. Validar tamaño del archivo (máx 100MB)
+	// 4. Validar tamaño del archivo (máx 100MB)
 	fileSize := c.Request.ContentLength
 	const maxFileSize = 100 * 1024 * 1024
 	if fileSize > maxFileSize {
@@ -129,7 +142,7 @@ func (vc *VideoControllerImpl) CreateVideo(c *gin.Context) {
 		return
 	}
 
-	// 4. Guardar archivo en local (rápido)
+	// 5. Guardar archivo en local (rápido)
 	// TODO: Agregar compresión de video antes de encolar
 	videoData, err := vc.videoService.SaveVideo(c)
 	if err != nil {
@@ -137,7 +150,7 @@ func (vc *VideoControllerImpl) CreateVideo(c *gin.Context) {
 		return
 	}
 
-	// 5. Crear Job en DB con status "pending"
+	// 6. Crear Job en DB con status "pending"
 	job := &models.Job{
 		Id:          videoData.Id,
 		UserID:      authenticatedUser.Id,
@@ -156,7 +169,7 @@ func (vc *VideoControllerImpl) CreateVideo(c *gin.Context) {
 		return
 	}
 
-	// 6. Conectar a RabbitMQ
+	// 7. Conectar a RabbitMQ
 	err = vc.rabbitMQService.Connect()
 	if err != nil {
 		vc.jobService.UpdateJobStatus(createdJob.Id, "failed", "Error conectando a RabbitMQ")
@@ -165,7 +178,7 @@ func (vc *VideoControllerImpl) CreateVideo(c *gin.Context) {
 	}
 	defer vc.rabbitMQService.Close()
 
-	// 7. Crear y serializar tarea para la cola
+	// 8. Crear y serializar tarea para la cola
 	videoTask := models.VideoTask{
 		JobID:       createdJob.Id,
 		UserID:      authenticatedUser.Id,
@@ -173,6 +186,7 @@ func (vc *VideoControllerImpl) CreateVideo(c *gin.Context) {
 		UniqueName:  videoData.UniqueName,
 		Title:       videoData.Title,
 		Description: videoData.Description,
+		Duration:    videoData.Duration,
 	}
 
 	taskJSON, err := json.Marshal(videoTask)
@@ -182,7 +196,7 @@ func (vc *VideoControllerImpl) CreateVideo(c *gin.Context) {
 		return
 	}
 
-	// 8. Publicar tarea a la cola de video
+	// 9. Publicar tarea a la cola de video
 	err = vc.rabbitMQService.Publish(cfg.RabbitMQVideoQueue, taskJSON)
 	if err != nil {
 		vc.jobService.UpdateJobStatus(createdJob.Id, "failed", "Error publicando a cola")
@@ -192,7 +206,7 @@ func (vc *VideoControllerImpl) CreateVideo(c *gin.Context) {
 
 	log.Printf("[x] Video encolado: job_id=%s, file=%s", createdJob.Id, videoData.UniqueName)
 
-	// 9. Responder inmediatamente con el job_id
+	// 10. Responder inmediatamente con el job_id
 	// NOTA: La limpieza de archivos locales la hace el WORKER después de procesar
 	c.JSON(http.StatusAccepted, gin.H{
 		"job_id":  createdJob.Id,

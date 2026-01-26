@@ -52,4 +52,5 @@ type VideoTask struct {
 	UniqueName  string `json:"unique_name"`
 	Title       string `json:"title"`
 	Description string `json:"description"`
+	Duration    string `json:"duration"`
 }
