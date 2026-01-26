@@ -10,6 +10,13 @@ import (
 	amqp "github.com/rabbitmq/amqp091-go"
 )
 
+const (
+	// MaxRetries es el número máximo de reintentos antes de descartar el mensaje
+	MaxRetries = 3
+	// RetryDelay es el tiempo de espera entre reintentos
+	RetryDelay = 5 * time.Second
+)
+
 // MessageHandler es una función que procesa un mensaje recibido
 // Retorna error si el procesamiento falla (el mensaje será reenviado)
 type MessageHandler func(message []byte) error
@@ -40,6 +47,17 @@ func logError(err error, msg string) bool {
 		return true
 	}
 	return false
+}
+
+// getRetryCount extrae el contador de reintentos de los headers del mensaje
+func getRetryCount(headers amqp.Table) int {
+	if headers == nil {
+		return 0
+	}
+	if count, ok := headers["x-retry-count"].(int32); ok {
+		return int(count)
+	}
+	return 0
 }
 
 // Connect establece la conexión con RabbitMQ
@@ -170,22 +188,57 @@ func (r *RabbitMQServiceImp) Consume(queueName string, handler MessageHandler) e
 	// Escuchar mensajes en un goroutine
 	go func() {
 		for msg := range messages {
-			log.Printf("Mensaje recibido de '%s': %s", queueName, string(msg.Body))
+			retryCount := getRetryCount(msg.Headers)
+			log.Printf("Mensaje recibido de '%s' (intento %d/%d)", queueName, retryCount+1, MaxRetries)
 
 			// Procesar el mensaje con el handler
 			err := handler(msg.Body)
 
 			if err != nil {
-				// Si el procesamiento falla, rechazar el mensaje y reencolarlo
-				log.Printf("Error procesando mensaje: %s - Reencolando...", err)
-				msg.Nack(false, true) // multiple=false, requeue=true
+				if retryCount >= MaxRetries-1 {
+					// Máximo de reintentos alcanzado, descartar mensaje
+					log.Printf("Máximo de reintentos alcanzado (%d). Descartando mensaje.", MaxRetries)
+					msg.Ack(false)
+				} else {
+					// Reintentar: Ack el mensaje actual y republicar con contador incrementado
+					log.Printf("Error procesando mensaje: %s - Reintentando en %v... (%d/%d)",
+						err, RetryDelay, retryCount+2, MaxRetries)
+					msg.Ack(false)
+
+					// Esperar antes de reintentar
+					time.Sleep(RetryDelay)
+
+					// Republicar con retry count incrementado
+					r.republishWithRetry(queueName, msg.Body, retryCount+1)
+				}
 			} else {
-				// Si el procesamiento fue exitoso, confirmar el mensaje
 				log.Printf("Mensaje procesado exitosamente")
-				msg.Ack(false) // multiple=false
+				msg.Ack(false)
 			}
 		}
 	}()
 
 	return nil
+}
+
+// republishWithRetry republica un mensaje con el contador de reintentos incrementado
+func (r *RabbitMQServiceImp) republishWithRetry(queueName string, body []byte, retryCount int) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	return r.channel.PublishWithContext(
+		ctx,
+		"",
+		queueName,
+		false,
+		false,
+		amqp.Publishing{
+			DeliveryMode: amqp.Persistent,
+			ContentType:  "application/json",
+			Headers: amqp.Table{
+				"x-retry-count": int32(retryCount),
+			},
+			Body: body,
+		},
+	)
 }
