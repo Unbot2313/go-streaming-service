@@ -10,15 +10,21 @@ import (
 var authService = services.NewAuthService()
 
 func AuthMiddleware(c *gin.Context) {
+	rawToken := c.GetHeader("Authorization")
 
-	Rawtoken := c.GetHeader("Authorization")
-	token := strings.Split(Rawtoken, "Bearer ")[1]
-
-	if token == "" {
-		c.JSON(401, gin.H{"error": "Authorization token not provided"})
+	if rawToken == "" {
+		c.JSON(401, gin.H{"error": "Authorization header not provided"})
 		c.Abort()
 		return
 	}
+
+	if !strings.HasPrefix(rawToken, "Bearer ") {
+		c.JSON(401, gin.H{"error": "Invalid authorization format. Use: Bearer <token>"})
+		c.Abort()
+		return
+	}
+
+	token := strings.TrimPrefix(rawToken, "Bearer ")
 
 	user, err := authService.ValidateToken(token)
 

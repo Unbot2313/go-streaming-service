@@ -49,12 +49,10 @@ func (fs *filesService) CreateFolder(path string) error {
 }
 
 func (fs *filesService) RemoveFolder(folder string) error {
-	//borrar la carpeta tras subir los archivos
 	err := os.RemoveAll(folder)
 	if err != nil {
+		log.Println("error al borrar la carpeta:", err)
 		return err
 	}
-
-	log.Println("error al borrar la carpeta: ", err)
-	return err
+	return nil
 }
