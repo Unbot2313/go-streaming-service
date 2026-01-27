@@ -32,7 +32,7 @@ func NewMinIOStorage() StorageService {
 }
 
 // UploadFolder sube todos los archivos de una carpeta a MinIO
-func (m *MinIOStorage) UploadFolder(localFolder string) (UploadResult, error) {
+func (m *MinIOStorage) UploadFolder(ctx context.Context, localFolder string) (UploadResult, error) {
 	baseFolder := filepath.Base(localFolder)
 
 	var m3u8FileURL string
@@ -62,7 +62,7 @@ func (m *MinIOStorage) UploadFolder(localFolder string) (UploadResult, error) {
 		}
 
 		_, err := m.client.FPutObject(
-			context.Background(),
+			ctx,
 			m.bucketName,
 			objectName,
 			filePath,
@@ -99,9 +99,7 @@ func (m *MinIOStorage) UploadFolder(localFolder string) (UploadResult, error) {
 }
 
 // DeleteFolder elimina todos los objetos dentro de una carpeta en MinIO
-func (m *MinIOStorage) DeleteFolder(folderName string) error {
-	ctx := context.Background()
-
+func (m *MinIOStorage) DeleteFolder(ctx context.Context, folderName string) error {
 	log.Printf("[MinIO] Eliminando objetos en: %s", folderName)
 
 	objectsCh := m.client.ListObjects(ctx, m.bucketName, minio.ListObjectsOptions{

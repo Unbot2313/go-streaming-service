@@ -22,10 +22,10 @@ type ObjectInfo struct {
 // StorageService define la interfaz genérica para operaciones de almacenamiento
 type StorageService interface {
 	// UploadFolder sube todos los archivos de una carpeta local al storage
-	UploadFolder(localFolder string) (UploadResult, error)
+	UploadFolder(ctx context.Context, localFolder string) (UploadResult, error)
 
 	// DeleteFolder elimina todos los objetos dentro de una carpeta en el storage
-	DeleteFolder(folderName string) error
+	DeleteFolder(ctx context.Context, folderName string) error
 
 	// ListObjects lista los objetos dentro de una carpeta
 	ListObjects(ctx context.Context, folder string) ([]ObjectInfo, error)

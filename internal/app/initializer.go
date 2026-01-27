@@ -19,7 +19,8 @@ func InitializeComponents() (controllers.UserController, controllers.AuthControl
 	// Inicializa servicios de video con StorageService genérico
 	storageService := storage.NewStorageService()
 	filesService := services.NewFilesService()
-	videoService := services.NewVideoService(storageService, filesService)
+	ffmpegService := services.NewFFmpegService()
+	videoService := services.NewVideoService(storageService, filesService, ffmpegService)
 	databaseVideoService := services.NewDatabaseVideoService()
 
 	// Inicializa servicios de jobs y RabbitMQ

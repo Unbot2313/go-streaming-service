@@ -144,7 +144,7 @@ func (vc *VideoControllerImpl) CreateVideo(c *gin.Context) {
 
 	// 5. Guardar archivo en local (rápido)
 	// TODO: Agregar compresión de video antes de encolar
-	videoData, err := vc.videoService.SaveVideo(c)
+	videoData, err := vc.videoService.SaveVideo(c.Request.Context(), c)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return

@@ -36,7 +36,7 @@ func NewS3Storage() StorageService {
 }
 
 // UploadFolder sube todos los archivos de una carpeta a S3
-func (s *S3Storage) UploadFolder(localFolder string) (UploadResult, error) {
+func (s *S3Storage) UploadFolder(ctx context.Context, localFolder string) (UploadResult, error) {
 	baseFolder := filepath.Base(localFolder)
 
 	var m3u8FileURL string
@@ -61,7 +61,7 @@ func (s *S3Storage) UploadFolder(localFolder string) (UploadResult, error) {
 
 		key := filepath.Join(baseFolder, file.Name())
 
-		result, err := s.uploader.Upload(context.TODO(), &s3.PutObjectInput{
+		result, err := s.uploader.Upload(ctx, &s3.PutObjectInput{
 			Bucket: aws.String(s.bucketName),
 			Key:    aws.String(key),
 			Body:   f,
@@ -92,9 +92,7 @@ func (s *S3Storage) UploadFolder(localFolder string) (UploadResult, error) {
 }
 
 // DeleteFolder elimina todos los objetos dentro de una carpeta en S3
-func (s *S3Storage) DeleteFolder(folderName string) error {
-	ctx := context.Background()
-
+func (s *S3Storage) DeleteFolder(ctx context.Context, folderName string) error {
 	log.Println("Eliminando objetos en la carpeta:", folderName)
 
 	input := &s3.ListObjectsV2Input{
