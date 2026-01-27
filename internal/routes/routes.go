@@ -7,7 +7,7 @@ import (
 )
 
 // SetupRoutes configura todas las rutas
-func SetupRoutes(router *gin.RouterGroup, userController controllers.UserController, authController controllers.AuthController, videoController controllers.VideoController) {
+func SetupRoutes(router *gin.RouterGroup, userController controllers.UserController, authController controllers.AuthController, videoController controllers.VideoController, jobController controllers.JobController) {
 	// Rutas de usuarios
 	userRoutes := router.Group("/users")
 	{
@@ -37,5 +37,10 @@ func SetupRoutes(router *gin.RouterGroup, userController controllers.UserControl
 		// Ruta protegida
         ProtectedRoute.POST("/upload", videoController.CreateVideo)
     }
-	
+
+	// Rutas de jobs (públicas)
+	jobRoutes := router.Group("/jobs")
+	{
+		jobRoutes.GET("/:jobid", jobController.GetJobByID)
+	}
 }

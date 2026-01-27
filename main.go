@@ -41,10 +41,10 @@ func main() {
 	v1Group.Static("/static", "./static/temp")
 
 	// Inicializar los componentes de la aplicación
-	userController, authController, videoController := app.InitializeComponents()
+	userController, authController, videoController, jobController := app.InitializeComponents()
 
 	// Configurar las rutas
-	routes.SetupRoutes(v1Group, userController, authController, videoController)
+	routes.SetupRoutes(v1Group, userController, authController, videoController, jobController)
 	// Configurar la documentación de Swagger
 	r.GET("/docs/*any", ginSwagger.WrapHandler(swaggerfiles.Handler))
 

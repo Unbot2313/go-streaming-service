@@ -16,22 +16,16 @@ var (
 
 // GetDsn genera la cadena de conexión para la base de datos.
 func getDsn() string {
-
 	config := GetConfig()
 
-	dockerMode := config.DOCKER_MODE
-	// Si la aplicación está corriendo en un contenedor de Docker, se debe cambiar el host de la base de datos.
-	host := config.PostgresHost
-	// si no esta en un contenedor se busca por fuera de la coneccion de contenedores de docker
-	if !dockerMode {
-		host = "localhost"
-	}
-	port := config.PostgresPort
-	user := config.PostgresUser
-	password := config.PostgresPassword
-	dbname := config.PostgresDBName
-	
-	return fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s sslmode=disable", host, user, password, dbname, port)
+	return fmt.Sprintf(
+		"host=%s user=%s password=%s dbname=%s port=%s sslmode=disable",
+		config.PostgresHost,
+		config.PostgresUser,
+		config.PostgresPassword,
+		config.PostgresDBName,
+		config.PostgresPort,
+	)
 }
 
 // GetDB devuelve una instancia única de la conexión a la base de datos.
@@ -60,6 +54,11 @@ func migrations(db *gorm.DB) error {
 	}
 
 	err = db.AutoMigrate(&models.VideoModel{})
+	if err != nil {
+		return err
+	}
+
+	err = db.AutoMigrate(&models.JobModel{})
 	if err != nil {
 		return err
 	}

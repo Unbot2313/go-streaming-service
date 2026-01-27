@@ -4,3 +4,7 @@ frontend/
 
 .log
 *.log
+
+# Binarios compilados
+go-streaming-service
+*.exe
