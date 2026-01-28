@@ -77,7 +77,8 @@ func (vs *videoServiceImp) SaveVideo(ctx context.Context, c *gin.Context) (*mode
 
 	storagePath := cfg.LocalStoragePath
 	id := uuid.New().String()
-	uniqueName := fmt.Sprintf("%s_%s", id, header.Filename)
+	ext := strings.ToLower(filepath.Ext(header.Filename))
+	uniqueName := id + ext // Solo UUID + extensión para URLs limpias
 
 	// Guardar el archivo directamente con Gin
 	savePath := filepath.Join(storagePath, uniqueName)
