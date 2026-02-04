@@ -8,6 +8,23 @@ Este es un proyecto de servicio de streaming construído en Go. Permite transmit
 
 **Server:** Golang, Gin, AWS, Postgresql
 
+## Architecture
+
+![Architecture](docs/architecture.png)
+
+### Request Flow
+```
+HTTP Request → Gin Router → Middlewares (CORS, Auth) → Controllers → Services → Data Layer (GORM/S3)
+```
+
+### Video Processing Pipeline
+1. User uploads video via API (`POST /api/v1/streaming/upload`)
+2. Server validates, saves locally, creates a Job (status: "pending") and enqueues task to RabbitMQ
+3. Server responds immediately with `job_id` (HTTP 202)
+4. Worker consumes task, converts to HLS (ffmpeg), generates thumbnail, uploads to S3/MinIO
+5. Worker saves video metadata to PostgreSQL and updates job status to "completed"
+6. Client queries job status (`GET /api/v1/jobs/:id`) and streams the video once ready
+
 ## Requerimientos
 
 Para utilizar este proyecto, necesitas:
