@@ -8,3 +8,4 @@ frontend/
 # Binarios compilados
 go-streaming-service
 *.exe
+TODO.md
