@@ -14,7 +14,7 @@ func InitializeComponents() (controllers.UserController, controllers.AuthControl
 
 	// Inicializa los controladores de usuario y auth
 	userController := controllers.NewUserController(userService)
-	authController := controllers.NewAuthController(authService)
+	authController := controllers.NewAuthController(authService, userService)
 
 	// Inicializa servicios de video con StorageService genérico
 	storageService := storage.NewStorageService()

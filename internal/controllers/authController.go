@@ -46,17 +46,56 @@ func (controller *AuthControllerImp) Login(c *gin.Context) {
 	})
 }
 
-// Register es el controlador para el endpoint de registro
+// Register godoc
+// @Summary		Register a new user
+// @Description	Create a new user account and return a JWT token
+// @Tags		Auth
+// @Accept		json
+// @Produce		json
+// @Param		user body models.UserRegister{} true "User registration data"
+// @Success		201 {object} map[string]string
+// @Failure		400 {object} map[string]string
+// @Failure		409 {object} map[string]string
+// @Router		/auth/register [post]
 func (controller *AuthControllerImp) Register(c *gin.Context) {
-	// Implementar
+	var req models.UserRegister
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		helpers.HandleError(c, http.StatusBadRequest, "Invalid input: username (3-100 chars), password (min 8 chars) and valid email are required", err)
+		return
+	}
+
+	user := &models.User{
+		Username: req.Username,
+		Password: req.Password,
+		Email:    req.Email,
+	}
+
+	createdUser, err := controller.userService.CreateUser(user)
+	if err != nil {
+		helpers.HandleError(c, http.StatusConflict, "Username already exists", err)
+		return
+	}
+
+	token, err := controller.authService.GenerateToken(createdUser)
+	if err != nil {
+		helpers.HandleError(c, http.StatusInternalServerError, "Could not generate token", err)
+		return
+	}
+
+	c.JSON(http.StatusCreated, gin.H{
+		"token": token,
+		"user":  createdUser,
+	})
 }
 
 
 type AuthControllerImp struct {
 	authService services.AuthService
+	userService services.UserService
 }
 
 // NewAuthController crea una nueva instancia del controlador de autenticación
-func NewAuthController(authService services.AuthService) AuthController {
-	return &AuthControllerImp{authService}
+func NewAuthController(authService services.AuthService, userService services.UserService) AuthController {
+	return &AuthControllerImp{authService: authService, userService: userService}
 }
