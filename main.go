@@ -1,6 +1,8 @@
 package main
 
 import (
+	"strings"
+
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 
@@ -21,9 +23,17 @@ import (
 
 func main() {
 
+	cfg := config.GetConfig()
+
 	r := gin.Default()
 
-	r.Use(cors.Default()) // Habilita CORS para todos los orígenes
+	allowedOrigins := strings.Split(cfg.CORSAllowedOrigins, ",")
+	r.Use(cors.New(cors.Config{
+		AllowOrigins:     allowedOrigins,
+		AllowMethods:     []string{"GET", "POST", "PATCH", "DELETE", "OPTIONS"},
+		AllowHeaders:     []string{"Authorization", "Content-Type"},
+		AllowCredentials: true,
+	}))
 
 	apiGroup := r.Group("/api")
 
