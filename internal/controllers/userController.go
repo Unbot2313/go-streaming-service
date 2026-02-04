@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/unbot2313/go-streaming-service/internal/helpers"
 	"github.com/unbot2313/go-streaming-service/internal/models"
 	"github.com/unbot2313/go-streaming-service/internal/services"
 )
@@ -34,7 +35,7 @@ func (controller *UserControllerImp) GetUserByID(c *gin.Context) {
 	Id := c.Param("id")
 	users, err := controller.service.GetUserByID(Id)
 	if err != nil {
-		c.JSON(404, gin.H{"error": err.Error()})
+		helpers.HandleError(c, http.StatusNotFound, "User not found", err)
 		return
 	}
 	c.JSON(200, users)
@@ -54,7 +55,7 @@ func (controller *UserControllerImp) GetUserByUserName(c *gin.Context) {
 	userName := c.Param("username")
 	users, err := controller.service.GetUserByUserName(userName)
 	if err != nil {
-		c.JSON(404, gin.H{"error": err.Error()})
+		helpers.HandleError(c, http.StatusNotFound, "User not found", err)
 		return
 	}
 	c.JSON(200, users)
@@ -75,13 +76,13 @@ func (controller *UserControllerImp) CreateUser(c *gin.Context) {
 	var user models.User
 
 	if err := c.ShouldBindJSON(&user); err != nil {
-		c.JSON(400, gin.H{"error": err.Error()})
+		helpers.HandleError(c, http.StatusBadRequest, "Invalid request body", err)
 		return
 	}
 
 	newUser, err := controller.service.CreateUser(&user)
 	if err != nil {
-		c.JSON(400, gin.H{"error": err.Error()})
+		helpers.HandleError(c, http.StatusBadRequest, "Could not create user", err)
 		return
 	}
 
@@ -104,7 +105,7 @@ func (controller *UserControllerImp) DeleteUserByID(c *gin.Context) {
 
 	err := controller.service.DeleteUserByID(id)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		helpers.HandleError(c, http.StatusNotFound, "User not found", err)
 		return
 	}
 	c.JSON(200, gin.H{"message": "User deleted"})
