@@ -4,6 +4,8 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/unbot2313/go-streaming-service/internal/helpers"
+	"github.com/unbot2313/go-streaming-service/internal/models"
 	"github.com/unbot2313/go-streaming-service/internal/services"
 )
 
@@ -34,9 +36,28 @@ func NewJobController(jobService services.JobService) JobController {
 func (jc *JobControllerImpl) GetJobByID(c *gin.Context) {
 	jobId := c.Param("jobid")
 
+	// Verificar usuario autenticado
+	user, exists := c.Get("user")
+	if !exists {
+		helpers.HandleError(c, http.StatusUnauthorized, "Unauthorized", nil)
+		return
+	}
+
+	authenticatedUser, ok := user.(*models.User)
+	if !ok {
+		helpers.HandleError(c, http.StatusInternalServerError, "Could not parse user data", nil)
+		return
+	}
+
 	job, err := jc.jobService.GetJobByID(jobId)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		helpers.HandleError(c, http.StatusNotFound, "Job not found", err)
+		return
+	}
+
+	// Verificar que el job pertenece al usuario autenticado
+	if job.UserID != authenticatedUser.Id {
+		helpers.HandleError(c, http.StatusForbidden, "You can only view your own jobs", nil)
 		return
 	}
 

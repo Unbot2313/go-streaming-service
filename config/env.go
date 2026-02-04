@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"strconv"
 	"sync"
@@ -32,6 +33,8 @@ type Config struct {
 	RabbitMQVideoQueue     string
 	RabbitMQThumbnailQueue string
 
+	CORSAllowedOrigins string
+
 	StorageType     string
 	MinIOEndpoint   string
 	MinIOBucketName string
@@ -60,7 +63,7 @@ func GetConfig() *Config {
 
 		config = &Config{
 			Port:         getEnv("PORT", "8080"),
-			JWTSecretKey: getEnv("JWT_SECRET_KEY", "secretJwtKey"),
+			JWTSecretKey: getEnv("JWT_SECRET_KEY", ""),
 			LocalStoragePath: getEnv("LOCAL_STORAGE_PATH", "videos"),
 			AWSRegion:    getEnv("AWS_REGION", ""),
 			AWSBucketName: getEnv("AWS_BUCKET_NAME", ""),
@@ -80,15 +83,35 @@ func GetConfig() *Config {
 			RabbitMQVideoQueue:     getEnv("RABBITMQ_VIDEO_QUEUE", "video_processing"),
 			RabbitMQThumbnailQueue: getEnv("RABBITMQ_THUMBNAIL_QUEUE", "thumbnail_generation"),
 
+			CORSAllowedOrigins: getEnv("CORS_ALLOWED_ORIGINS", "http://localhost:3000"),
+
 			StorageType:     getEnv("STORAGE_TYPE", "minio"),
 			MinIOEndpoint:   getEnv("MINIO_ENDPOINT", "localhost:9000"),
 			MinIOBucketName: getEnv("MINIO_BUCKET_NAME", "streaming-videos"),
 			MinIOAccessKey:  getEnv("MINIO_ACCESS_KEY", "minioadmin"),
 			MinIOSecretKey:  getEnv("MINIO_SECRET_KEY", "minioadmin"),
 		}
+
+		validateConfig(config)
 	})
 
 	return config
+}
+
+func validateConfig(cfg *Config) {
+	if cfg.JWTSecretKey == "" {
+		panic("JWT_SECRET_KEY environment variable is required")
+	}
+	if len(cfg.JWTSecretKey) < 32 {
+		panic("JWT_SECRET_KEY must be at least 32 characters long")
+	}
+
+	if cfg.PostgresPassword == "postgres" {
+		log.Println("WARNING: using default PostgreSQL password, set POSTGRES_PASSWORD in .env")
+	}
+	if cfg.RabbitMQPassword == "guest" {
+		log.Println("WARNING: using default RabbitMQ password, set RABBITMQ_PASSWORD in .env")
+	}
 }
 
 func loadEnv() error {

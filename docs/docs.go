@@ -42,7 +42,57 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/models.UserSwagger"
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/jobs/{jobid}": {
+            "get": {
+                "description": "Get the status of a video processing job",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "jobs"
+                ],
+                "summary": "Get job status by ID",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Job ID",
+                        "name": "jobid",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.JobSwagger"
                         }
                     },
                     "404": {
@@ -104,9 +154,56 @@ const docTemplate = `{
                 }
             }
         },
+        "/streaming/id/{videoid}": {
+            "get": {
+                "description": "Get a video by its ID",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "streaming"
+                ],
+                "summary": "Get a video by ID",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Video ID",
+                        "name": "videoid",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.VideoSwagger"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/streaming/upload": {
             "post": {
-                "description": "Upload a video file along with metadata (title and description) and save to the AWS bucket.",
+                "description": "Upload a video file and queue it for async processing. Returns a job ID to track progress.",
                 "consumes": [
                     "multipart/form-data"
                 ],
@@ -116,7 +213,7 @@ const docTemplate = `{
                 "tags": [
                     "streaming"
                 ],
-                "summary": "Save a video",
+                "summary": "Upload a video for processing",
                 "parameters": [
                     {
                         "type": "string",
@@ -136,6 +233,53 @@ const docTemplate = `{
                         "description": "Video File",
                         "name": "video",
                         "in": "formData",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "202": {
+                        "description": "Accepted",
+                        "schema": {
+                            "$ref": "#/definitions/models.JobSwagger"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/streaming/views/{videoid}": {
+            "patch": {
+                "description": "Increment the views of a video by 1",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "streaming"
+                ],
+                "summary": "Increment the views of a video",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Video ID",
+                        "name": "videoid",
+                        "in": "path",
                         "required": true
                     }
                 ],
@@ -362,6 +506,49 @@ const docTemplate = `{
         }
     },
     "definitions": {
+        "models.JobSwagger": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string",
+                    "example": "Descripcion del video"
+                },
+                "error_message": {
+                    "type": "string",
+                    "example": ""
+                },
+                "id": {
+                    "type": "string",
+                    "example": "550e8400-e29b-41d4-a716-446655440000"
+                },
+                "message": {
+                    "type": "string",
+                    "example": "Video en cola de procesamiento"
+                },
+                "status": {
+                    "type": "string",
+                    "enum": [
+                        "pending",
+                        "processing",
+                        "completed",
+                        "failed"
+                    ],
+                    "example": "pending"
+                },
+                "title": {
+                    "type": "string",
+                    "example": "Mi Video"
+                },
+                "user_id": {
+                    "type": "string",
+                    "example": "550e8400-e29b-41d4-a716-446655440001"
+                },
+                "video_id": {
+                    "type": "string",
+                    "example": ""
+                }
+            }
+        },
         "models.UserLogin": {
             "type": "object",
             "required": [
@@ -409,7 +596,13 @@ const docTemplate = `{
                 "description": {
                     "type": "string"
                 },
+                "duration": {
+                    "type": "string"
+                },
                 "id": {
+                    "type": "string"
+                },
+                "thumbnail": {
                     "type": "string"
                 },
                 "title": {
@@ -420,6 +613,9 @@ const docTemplate = `{
                 },
                 "video": {
                     "type": "string"
+                },
+                "views": {
+                    "type": "integer"
                 }
             }
         }

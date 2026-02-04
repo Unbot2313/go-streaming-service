@@ -8,6 +8,23 @@ Este es un proyecto de servicio de streaming construído en Go. Permite transmit
 
 **Server:** Golang, Gin, AWS, Postgresql
 
+## Architecture
+
+![Architecture](docs/architecture.png)
+
+### Request Flow
+```
+HTTP Request → Gin Router → Middlewares (CORS, Auth) → Controllers → Services → Data Layer (GORM/S3)
+```
+
+### Video Processing Pipeline
+1. User uploads video via API (`POST /api/v1/streaming/upload`)
+2. Server validates, saves locally, creates a Job (status: "pending") and enqueues task to RabbitMQ
+3. Server responds immediately with `job_id` (HTTP 202)
+4. Worker consumes task, converts to HLS (ffmpeg), generates thumbnail, uploads to S3/MinIO
+5. Worker saves video metadata to PostgreSQL and updates job status to "completed"
+6. Client queries job status (`GET /api/v1/jobs/:id`) and streams the video once ready
+
 ## Requerimientos
 
 Para utilizar este proyecto, necesitas:
@@ -56,6 +73,33 @@ In case of change the documentation make that:
     go install github.com/go-swagger/go-swagger/cmd/swagger@latest
     swag init #update the documentation from the swagger
 ```
+
+## Rate Limiting
+
+Uses the **Token Bucket** algorithm (`golang.org/x/time/rate`) to control request rates per client IP.
+
+### How it works
+- A "bucket" fills with tokens at a constant rate
+- Each request consumes 1 token
+- If the bucket is empty, the request is rejected with HTTP 429 (Too Many Requests)
+- Tokens accumulate up to a maximum (burst), allowing short traffic spikes
+
+### Current configuration
+
+| Scope | Rate | Burst | Description |
+|-------|------|-------|-------------|
+| General (all routes) | 10 tokens/sec | 20 | Normal usage, allows short bursts |
+| Auth (`/login`, `/register`) | 1 token every 20s | 3 | Brute force protection |
+
+### Customization
+Rate limits are configured in code:
+- **General**: `main.go` - `middlewares.NewRateLimiter(10, 20)`
+- **Auth**: `internal/routes/routes.go` - `middlewares.NewRateLimiter(rate.Every(20*time.Second), 3)`
+
+To change limits, modify the two parameters: `rate` (tokens per second or interval) and `burst` (max accumulated tokens).
+
+### Scaling note
+The rate limiter stores counters in memory per server instance. If deploying multiple instances (e.g. Kubernetes), each instance tracks independently. For distributed rate limiting, replace with a Redis-backed solution like `github.com/ulule/limiter`.
 
 ## Features
 

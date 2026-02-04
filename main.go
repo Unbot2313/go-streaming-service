@@ -1,6 +1,8 @@
 package main
 
 import (
+	"strings"
+
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 
@@ -9,6 +11,7 @@ import (
 	"github.com/unbot2313/go-streaming-service/config"
 	_ "github.com/unbot2313/go-streaming-service/docs"
 	"github.com/unbot2313/go-streaming-service/internal/app"
+	"github.com/unbot2313/go-streaming-service/internal/middlewares"
 	"github.com/unbot2313/go-streaming-service/internal/routes"
 )
 
@@ -21,9 +24,21 @@ import (
 
 func main() {
 
+	cfg := config.GetConfig()
+
 	r := gin.Default()
 
-	r.Use(cors.Default()) // Habilita CORS para todos los orígenes
+	allowedOrigins := strings.Split(cfg.CORSAllowedOrigins, ",")
+	r.Use(cors.New(cors.Config{
+		AllowOrigins:     allowedOrigins,
+		AllowMethods:     []string{"GET", "POST", "PATCH", "DELETE", "OPTIONS"},
+		AllowHeaders:     []string{"Authorization", "Content-Type"},
+		AllowCredentials: true,
+	}))
+
+	// Rate limiter general: 10 req/s, burst 20
+	generalLimiter := middlewares.NewRateLimiter(10, 20)
+	r.Use(generalLimiter.Middleware())
 
 	apiGroup := r.Group("/api")
 

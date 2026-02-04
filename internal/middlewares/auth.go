@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
+	"github.com/unbot2313/go-streaming-service/internal/helpers"
 	"github.com/unbot2313/go-streaming-service/internal/services"
 )
 
@@ -29,7 +30,7 @@ func AuthMiddleware(c *gin.Context) {
 	user, err := authService.ValidateToken(token)
 
 	if err != nil {
-		c.JSON(401, gin.H{"error": err.Error()})
+		helpers.HandleError(c, 401, "Invalid or expired token", err)
 		c.Abort()
 		return
 	}
