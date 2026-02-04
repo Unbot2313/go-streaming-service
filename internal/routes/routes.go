@@ -1,9 +1,12 @@
 package routes
 
 import (
+	"time"
+
 	"github.com/gin-gonic/gin"
 	"github.com/unbot2313/go-streaming-service/internal/controllers"
 	"github.com/unbot2313/go-streaming-service/internal/middlewares"
+	"golang.org/x/time/rate"
 )
 
 // SetupRoutes configura todas las rutas
@@ -18,10 +21,12 @@ func SetupRoutes(router *gin.RouterGroup, userController controllers.UserControl
 	}
 
 	// Rutas de autenticación
+	// Rate limiter estricto: 1 token cada 20s, burst 3 (anti fuerza bruta)
+	authLimiter := middlewares.NewRateLimiter(rate.Every(20*time.Second), 3)
 	authRoutes := router.Group("/auth")
 	{
-		authRoutes.POST("/login", authController.Login)
-		authRoutes.POST("/register", authController.Register)
+		authRoutes.POST("/login", authLimiter.Middleware(), authController.Login)
+		authRoutes.POST("/register", authLimiter.Middleware(), authController.Register)
 	}
 
     VideoRoutes := router.Group("/streaming")
