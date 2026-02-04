@@ -33,6 +33,8 @@ type Config struct {
 	RabbitMQVideoQueue     string
 	RabbitMQThumbnailQueue string
 
+	CORSAllowedOrigins string
+
 	StorageType     string
 	MinIOEndpoint   string
 	MinIOBucketName string
@@ -80,6 +82,8 @@ func GetConfig() *Config {
 			RabbitMQPassword:       getEnv("RABBITMQ_PASSWORD", "guest"),
 			RabbitMQVideoQueue:     getEnv("RABBITMQ_VIDEO_QUEUE", "video_processing"),
 			RabbitMQThumbnailQueue: getEnv("RABBITMQ_THUMBNAIL_QUEUE", "thumbnail_generation"),
+
+			CORSAllowedOrigins: getEnv("CORS_ALLOWED_ORIGINS", "http://localhost:3000"),
 
 			StorageType:     getEnv("STORAGE_TYPE", "minio"),
 			MinIOEndpoint:   getEnv("MINIO_ENDPOINT", "localhost:9000"),
