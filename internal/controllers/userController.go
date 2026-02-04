@@ -100,8 +100,20 @@ func (controller *UserControllerImp) CreateUser(c *gin.Context) {
 // @Failure 		500 {object} map[string]string
 // @Router 			/users/{UserId} [delete]
 func (controller *UserControllerImp) DeleteUserByID(c *gin.Context) {
-
 	id := c.Param("id")
+
+	// Verificar que el usuario autenticado es el dueno de la cuenta
+	user, exists := c.Get("user")
+	if !exists {
+		helpers.HandleError(c, http.StatusUnauthorized, "Unauthorized", nil)
+		return
+	}
+
+	authenticatedUser, ok := user.(*models.User)
+	if !ok || authenticatedUser.Id != id {
+		helpers.HandleError(c, http.StatusForbidden, "You can only delete your own account", nil)
+		return
+	}
 
 	err := controller.service.DeleteUserByID(id)
 	if err != nil {

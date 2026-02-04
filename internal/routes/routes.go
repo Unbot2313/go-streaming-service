@@ -14,10 +14,15 @@ func SetupRoutes(router *gin.RouterGroup, userController controllers.UserControl
 	// Rutas de usuarios
 	userRoutes := router.Group("/users")
 	{
+		// Rutas publicas (lectura)
 		userRoutes.GET("/id/:id", userController.GetUserByID)
 		userRoutes.GET("/username/:username", userController.GetUserByUserName)
-		userRoutes.POST("/", userController.CreateUser)
-		userRoutes.DELETE("/:id", userController.DeleteUserByID)
+
+		// Rutas protegidas
+		protectedUserRoutes := userRoutes.Group("")
+		protectedUserRoutes.Use(middlewares.AuthMiddleware)
+		protectedUserRoutes.POST("/", userController.CreateUser)
+		protectedUserRoutes.DELETE("/:id", userController.DeleteUserByID)
 	}
 
 	// Rutas de autenticación
@@ -43,8 +48,9 @@ func SetupRoutes(router *gin.RouterGroup, userController controllers.UserControl
         ProtectedRoute.POST("/upload", videoController.CreateVideo)
     }
 
-	// Rutas de jobs (públicas)
+	// Rutas de jobs (protegidas)
 	jobRoutes := router.Group("/jobs")
+	jobRoutes.Use(middlewares.AuthMiddleware)
 	{
 		jobRoutes.GET("/:jobid", jobController.GetJobByID)
 	}
