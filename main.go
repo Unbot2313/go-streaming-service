@@ -11,6 +11,7 @@ import (
 	"github.com/unbot2313/go-streaming-service/config"
 	_ "github.com/unbot2313/go-streaming-service/docs"
 	"github.com/unbot2313/go-streaming-service/internal/app"
+	"github.com/unbot2313/go-streaming-service/internal/middlewares"
 	"github.com/unbot2313/go-streaming-service/internal/routes"
 )
 
@@ -34,6 +35,10 @@ func main() {
 		AllowHeaders:     []string{"Authorization", "Content-Type"},
 		AllowCredentials: true,
 	}))
+
+	// Rate limiter general: 10 req/s, burst 20
+	generalLimiter := middlewares.NewRateLimiter(10, 20)
+	r.Use(generalLimiter.Middleware())
 
 	apiGroup := r.Group("/api")
 
