@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/unbot2313/go-streaming-service/internal/helpers"
 	"github.com/unbot2313/go-streaming-service/internal/services"
 )
 
@@ -36,7 +37,7 @@ func (jc *JobControllerImpl) GetJobByID(c *gin.Context) {
 
 	job, err := jc.jobService.GetJobByID(jobId)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		helpers.HandleError(c, http.StatusNotFound, "Job not found", err)
 		return
 	}
 

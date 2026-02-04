@@ -7,6 +7,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/unbot2313/go-streaming-service/config"
+	"github.com/unbot2313/go-streaming-service/internal/helpers"
 	"github.com/unbot2313/go-streaming-service/internal/models"
 	"github.com/unbot2313/go-streaming-service/internal/services"
 )
@@ -37,7 +38,7 @@ func (vc *VideoControllerImpl) GetLatestVideos(c *gin.Context) {
 	videos, err := vc.databaseVideoService.FindLatestVideos()
 
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		helpers.HandleError(c, http.StatusInternalServerError, "Could not retrieve videos", err)
 		return
 	}
 
@@ -61,7 +62,7 @@ func (vc *VideoControllerImpl) GetVideoByID(c *gin.Context) {
 	video, err := vc.databaseVideoService.FindVideoByID(videoId)
 
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		helpers.HandleError(c, http.StatusNotFound, "Video not found", err)
 		return
 	}
 
@@ -84,7 +85,7 @@ func (vc *VideoControllerImpl) IncrementViews(c *gin.Context) {
 	video, err := vc.databaseVideoService.IncrementViews(videoId)
 
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		helpers.HandleError(c, http.StatusInternalServerError, "Could not update views", err)
 		return
 	}
 
@@ -146,7 +147,7 @@ func (vc *VideoControllerImpl) CreateVideo(c *gin.Context) {
 	// TODO: Agregar compresión de video antes de encolar
 	videoData, err := vc.videoService.SaveVideo(c.Request.Context(), c)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		helpers.HandleError(c, http.StatusInternalServerError, "Could not save video", err)
 		return
 	}
 
@@ -165,7 +166,7 @@ func (vc *VideoControllerImpl) CreateVideo(c *gin.Context) {
 	if err != nil {
 		// Si falla crear el job, limpiar el video local
 		vc.videoService.GetFilesService().RemoveFile(videoData.LocalPath)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al crear job: " + err.Error()})
+		helpers.HandleError(c, http.StatusInternalServerError, "Could not create processing job", err)
 		return
 	}
 
