@@ -1,9 +1,10 @@
 package controllers
 
 import (
-	"fmt"
+	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/unbot2313/go-streaming-service/internal/helpers"
 	"github.com/unbot2313/go-streaming-service/internal/models"
 	"github.com/unbot2313/go-streaming-service/internal/services"
 )
@@ -28,15 +29,14 @@ func (controller *AuthControllerImp) Login(c *gin.Context) {
 	var userLogin models.UserLogin
 
 	if err := c.ShouldBindJSON(&userLogin); err != nil {
-		err = fmt.Errorf("se requiere de un usuario y contraseña")
-		c.JSON(400, gin.H{"error": err.Error()})
+		helpers.HandleError(c, http.StatusBadRequest, "Username and password are required", err)
 		return
 	}
 
 	token, err := controller.authService.Login(userLogin.Username, userLogin.Password)
 
 	if err != nil {
-		c.JSON(404, gin.H{"error": err.Error()})
+		helpers.HandleError(c, http.StatusUnauthorized, "Invalid credentials", err)
 		return
 	}
 
