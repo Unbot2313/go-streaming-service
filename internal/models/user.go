@@ -25,9 +25,9 @@ type UserLogin struct {
 type UserSwagger struct {
 	Id           string    `json:"id" gorm:"primaryKey;not null;uniqueIndex"`
 	Username     string    `json:"username" gorm:"type:varchar(100);not null;uniqueIndex"`
-	Password     string    `json:"password" gorm:"not null"`
+	Password     string    `json:"-" gorm:"not null"`
 	Email        string    `json:"email" gorm:"type:varchar(100)"`
-	RefreshToken string    `json:"refresh_token"`
+	RefreshToken string    `json:"-"`
 	Videos []VideoSwagger 	`json:"videos" gorm:"foreignKey:UserID"`
 }
 
@@ -35,9 +35,9 @@ type UserSwagger struct {
 type User struct {
 	Id           string    `json:"id" gorm:"primaryKey;not null;uniqueIndex"`
 	Username     string    `json:"username" gorm:"type:varchar(100);not null;uniqueIndex"`
-	Password     string    `json:"password" gorm:"not null"`
+	Password     string    `json:"-" gorm:"not null"`
 	Email        string    `json:"email" gorm:"type:varchar(100)"`
-	RefreshToken string    `json:"refresh_token"`
+	RefreshToken string    `json:"-"`
 	Videos 		 []VideoModel 	`json:"videos" gorm:"foreignKey:UserID"`
 	CreatedAt    time.Time
 	UpdatedAt    time.Time
