@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 	"github.com/unbot2313/go-streaming-service/config"
@@ -25,24 +26,38 @@ type CreateVideoRequest struct {
 	Description string `form:"description" binding:"max=500"`
 }
 
-// SaveVideo		godoc
-// @Summary 		Save a video
-// @Description 	Upload a video file along with metadata (title and description) and save it to the AWS bucket.
+// GetLatestVideos	godoc
+// @Summary 		Get latest videos with pagination
+// @Description 	Retrieve the latest videos ordered by creation date. Supports pagination via query params.
 // @Tags 			streaming
 // @Produce 		json
-// @Success 		200 {object} models.VideoSwagger{}
+// @Param 			page query int false "Page number (default: 1)" default(1)
+// @Param 			page_size query int false "Items per page (default: 10, max: 50)" default(10)
+// @Success 		200 {object} services.PaginatedVideos{}
 // @Failure 		400 {object} map[string]string
 // @Failure 		500 {object} map[string]string
 // @Router 			/streaming/ [get]
 func (vc *VideoControllerImpl) GetLatestVideos(c *gin.Context) {
-	videos, err := vc.databaseVideoService.FindLatestVideos()
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "10"))
 
+	if page < 1 {
+		page = 1
+	}
+	if pageSize < 1 {
+		pageSize = 10
+	}
+	if pageSize > 50 {
+		pageSize = 50
+	}
+
+	result, err := vc.databaseVideoService.FindLatestVideos(page, pageSize)
 	if err != nil {
 		helpers.HandleError(c, http.StatusInternalServerError, "Could not retrieve videos", err)
 		return
 	}
 
-	c.JSON(http.StatusOK, videos)
+	c.JSON(http.StatusOK, result)
 }
 
 

@@ -9,26 +9,32 @@ import (
 	"gorm.io/gorm"
 )
 
-func (service *databaseVideoService) FindLatestVideos() (*[]*models.VideoModel, error) {
+func (service *databaseVideoService) FindLatestVideos(page, pageSize int) (*PaginatedVideos, error) {
 	db, err := config.GetDB()
 	if err != nil {
 		return nil, err
 	}
 
-	var videos []*models.VideoModel
-
-	// Ordenar por CreatedAt en orden descendente
-	dbCtx := db.Order("created_at DESC").Find(&videos)
-
-	if errors.Is(dbCtx.Error, gorm.ErrRecordNotFound) {
-		return nil, fmt.Errorf("no videos found")
+	var total int64
+	if err := db.Model(&models.VideoModel{}).Count(&total).Error; err != nil {
+		return nil, err
 	}
+
+	var videos []*models.VideoModel
+	offset := (page - 1) * pageSize
+
+	dbCtx := db.Order("created_at DESC").Limit(pageSize).Offset(offset).Find(&videos)
 
 	if dbCtx.Error != nil {
 		return nil, dbCtx.Error
 	}
 
-	return &videos, nil
+	return &PaginatedVideos{
+		Data:     videos,
+		Page:     page,
+		PageSize: pageSize,
+		Total:    total,
+	}, nil
 }
 
 func (service *databaseVideoService) FindVideoByID(videoId string) (*models.VideoModel, error) {
@@ -147,8 +153,15 @@ func (service *databaseVideoService) DeleteVideo(videoId string) error {
 
 type databaseVideoService struct {}
 
+type PaginatedVideos struct {
+	Data     []*models.VideoModel `json:"data"`
+	Page     int                  `json:"page"`
+	PageSize int                  `json:"page_size"`
+	Total    int64                `json:"total"`
+}
+
 type DatabaseVideoService interface {
-	FindLatestVideos() (*[]*models.VideoModel, error)
+	FindLatestVideos(page, pageSize int) (*PaginatedVideos, error)
 	FindVideoByID(videoId string) (*models.VideoModel, error) 
 	IncrementViews(videoId string) (*models.VideoModel, error)
 	FindUserVideos(userId string) ([]*models.VideoModel, error)
