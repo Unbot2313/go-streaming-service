@@ -44,8 +44,10 @@ func SetupRoutes(router *gin.RouterGroup, userController controllers.UserControl
 		VideoRoutes.GET("/id/:videoid", videoController.GetVideoByID)
 		VideoRoutes.PATCH("/views/:videoid", videoController.IncrementViews)
 
-		// Ruta protegida
+		// Rutas protegidas
         ProtectedRoute.POST("/upload", videoController.CreateVideo)
+		ProtectedRoute.PUT("/:videoid", videoController.UpdateVideo)
+		ProtectedRoute.DELETE("/:videoid", videoController.DeleteVideo)
     }
 
 	// Rutas de jobs (protegidas)
