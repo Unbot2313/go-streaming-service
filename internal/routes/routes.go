@@ -32,6 +32,12 @@ func SetupRoutes(router *gin.RouterGroup, userController controllers.UserControl
 	{
 		authRoutes.POST("/login", authLimiter.Middleware(), authController.Login)
 		authRoutes.POST("/register", authLimiter.Middleware(), authController.Register)
+		authRoutes.POST("/refresh", authLimiter.Middleware(), authController.RefreshToken)
+
+		// Logout requiere estar autenticado
+		protectedAuthRoutes := authRoutes.Group("")
+		protectedAuthRoutes.Use(middlewares.AuthMiddleware)
+		protectedAuthRoutes.POST("/logout", authController.Logout)
 	}
 
     VideoRoutes := router.Group("/streaming")
