@@ -25,13 +25,15 @@ func NewJobController(jobService services.JobService) JobController {
 
 // GetJobByID godoc
 // @Summary		Get job status by ID
-// @Description	Get the status of a video processing job
+// @Description	Get the status of a video processing job. Only the job owner can view it.
 // @Tags		jobs
 // @Produce		json
+// @Security	BearerAuth
 // @Param		jobid path string true "Job ID"
-// @Success		200 {object} models.JobSwagger{}
-// @Failure		404 {object} map[string]string
-// @Failure		500 {object} map[string]string
+// @Success		200 {object} helpers.APIResponse{data=models.JobSwagger}
+// @Failure		401 {object} helpers.APIResponse{error=helpers.APIError}
+// @Failure		403 {object} helpers.APIResponse{error=helpers.APIError}
+// @Failure		404 {object} helpers.APIResponse{error=helpers.APIError}
 // @Router		/jobs/{jobid} [get]
 func (jc *JobControllerImpl) GetJobByID(c *gin.Context) {
 	jobId := c.Param("jobid")

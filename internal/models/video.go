@@ -45,7 +45,7 @@ type VideoModel struct {
 	Views 			uint			`json:"views" gorm:"default:0"`
 	CreatedAt 		time.Time
 	UpdatedAt		time.Time
-	DeletedAt 		gorm.DeletedAt 	`gorm:"index"`
+	DeletedAt 		gorm.DeletedAt 	`gorm:"index" swaggertype:"string"`
 }
 
 // nombre de la tabla de videomodel

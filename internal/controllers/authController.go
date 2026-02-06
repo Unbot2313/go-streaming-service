@@ -16,16 +16,17 @@ type AuthController interface {
 	Logout(c *gin.Context)
 }
 
-// GetUserByUserName		godoc
-// @Summary 				Log in user
-// @Tags 					Auth
-// @Produce 				json
-// @Accept 					json
-// @Param 					user body models.UserLogin{} true "User object containing all user details"
-// @Success 				200 {object} map[string]string
-// @Failure 				404 {object} map[string]string
-// @Failure 				500 {object} map[string]string
-// @Router 					/auth/login [post]
+// Login godoc
+// @Summary		Log in user
+// @Description	Authenticate with username and password to get access and refresh tokens
+// @Tags		Auth
+// @Accept		json
+// @Produce		json
+// @Param		user body models.UserLogin true "User credentials"
+// @Success		200 {object} helpers.APIResponse{data=object{access_token=string,refresh_token=string,user=string}}
+// @Failure		400 {object} helpers.APIResponse{error=helpers.APIError}
+// @Failure		401 {object} helpers.APIResponse{error=helpers.APIError}
+// @Router		/auth/login [post]
 func (controller *AuthControllerImp) Login(c *gin.Context) {
 	
 	var userLogin models.UserLogin
@@ -51,14 +52,14 @@ func (controller *AuthControllerImp) Login(c *gin.Context) {
 
 // Register godoc
 // @Summary		Register a new user
-// @Description	Create a new user account and return a JWT token
+// @Description	Create a new user account and return access and refresh tokens
 // @Tags		Auth
 // @Accept		json
 // @Produce		json
-// @Param		user body models.UserRegister{} true "User registration data"
-// @Success		201 {object} map[string]string
-// @Failure		400 {object} map[string]string
-// @Failure		409 {object} map[string]string
+// @Param		user body models.UserRegister true "User registration data"
+// @Success		201 {object} helpers.APIResponse{data=object{access_token=string,refresh_token=string,user=models.UserSwagger}}
+// @Failure		400 {object} helpers.APIResponse{error=helpers.APIError}
+// @Failure		409 {object} helpers.APIResponse{error=helpers.APIError}
 // @Router		/auth/register [post]
 func (controller *AuthControllerImp) Register(c *gin.Context) {
 	var req models.UserRegister
@@ -112,9 +113,9 @@ func (controller *AuthControllerImp) Register(c *gin.Context) {
 // @Accept		json
 // @Produce		json
 // @Param		body body object{refresh_token=string} true "Refresh token"
-// @Success		200 {object} map[string]string
-// @Failure		400 {object} map[string]string
-// @Failure		401 {object} map[string]string
+// @Success		200 {object} helpers.APIResponse{data=object{access_token=string,refresh_token=string}}
+// @Failure		400 {object} helpers.APIResponse{error=helpers.APIError}
+// @Failure		401 {object} helpers.APIResponse{error=helpers.APIError}
 // @Router		/auth/refresh [post]
 func (controller *AuthControllerImp) RefreshToken(c *gin.Context) {
 	var req struct {
@@ -143,8 +144,10 @@ func (controller *AuthControllerImp) RefreshToken(c *gin.Context) {
 // @Description	Revoke the refresh token for the authenticated user
 // @Tags		Auth
 // @Produce		json
-// @Success		200 {object} map[string]string
-// @Failure		500 {object} map[string]string
+// @Security	BearerAuth
+// @Success		200 {object} helpers.APIResponse{data=object{message=string}}
+// @Failure		401 {object} helpers.APIResponse{error=helpers.APIError}
+// @Failure		500 {object} helpers.APIResponse{error=helpers.APIError}
 // @Router		/auth/logout [post]
 func (controller *AuthControllerImp) Logout(c *gin.Context) {
 	user, exists := c.Get("user")
