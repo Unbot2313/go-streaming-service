@@ -1,6 +1,7 @@
 package middlewares
 
 import (
+	"net/http"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -14,13 +15,13 @@ func AuthMiddleware(c *gin.Context) {
 	rawToken := c.GetHeader("Authorization")
 
 	if rawToken == "" {
-		c.JSON(401, gin.H{"error": "Authorization header not provided"})
+		helpers.Error(c, http.StatusUnauthorized, "Authorization header not provided")
 		c.Abort()
 		return
 	}
 
 	if !strings.HasPrefix(rawToken, "Bearer ") {
-		c.JSON(401, gin.H{"error": "Invalid authorization format. Use: Bearer <token>"})
+		helpers.Error(c, http.StatusUnauthorized, "Invalid authorization format. Use: Bearer <token>")
 		c.Abort()
 		return
 	}

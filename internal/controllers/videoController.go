@@ -59,7 +59,7 @@ func (vc *VideoControllerImpl) GetLatestVideos(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, result)
+	helpers.Success(c, http.StatusOK, result)
 }
 
 
@@ -83,7 +83,7 @@ func (vc *VideoControllerImpl) GetVideoByID(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, video)
+	helpers.Success(c, http.StatusOK, video)
 }
 
 // IncrementViews		godoc
@@ -106,8 +106,7 @@ func (vc *VideoControllerImpl) IncrementViews(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, video)
-	
+	helpers.Success(c, http.StatusOK, video)
 }
 
 // CreateVideo godoc
@@ -129,26 +128,26 @@ func (vc *VideoControllerImpl) CreateVideo(c *gin.Context) {
 	// 1. Recuperar el usuario del contexto (del middleware JWT)
 	user, exists := c.Get("user")
 	if !exists {
-		c.JSON(500, gin.H{"error": "User not found in context"})
+		helpers.Error(c, http.StatusInternalServerError, "User not found in context")
 		return
 	}
 
 	authenticatedUser, ok := user.(*models.User)
 	if !ok {
-		c.JSON(500, gin.H{"error": "Failed to parse user data"})
+		helpers.Error(c, http.StatusInternalServerError, "Failed to parse user data")
 		return
 	}
 
 	// 2. Validar campos requeridos (title obligatorio)
 	var req CreateVideoRequest
 	if err := c.ShouldBind(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "title es requerido (máx 100 caracteres)"})
+		helpers.Error(c, http.StatusBadRequest, "title es requerido (max 100 caracteres)")
 		return
 	}
 
 	// 3. Validar extensión del archivo
 	if !vc.videoService.IsValidVideoExtension(c) {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "El archivo no es un tipo de video válido."})
+		helpers.Error(c, http.StatusBadRequest, "El archivo no es un tipo de video valido")
 		return
 	}
 
@@ -156,7 +155,7 @@ func (vc *VideoControllerImpl) CreateVideo(c *gin.Context) {
 	fileSize := c.Request.ContentLength
 	const maxFileSize = 100 * 1024 * 1024
 	if fileSize > maxFileSize {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "El archivo excede el límite de tamaño permitido."})
+		helpers.Error(c, http.StatusBadRequest, "El archivo excede el limite de tamaño permitido")
 		return
 	}
 
@@ -191,7 +190,7 @@ func (vc *VideoControllerImpl) CreateVideo(c *gin.Context) {
 	err = vc.rabbitMQService.Connect()
 	if err != nil {
 		vc.jobService.UpdateJobStatus(createdJob.Id, "failed", "Error conectando a RabbitMQ")
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error conectando a cola de procesamiento"})
+		helpers.Error(c, http.StatusInternalServerError, "Error conectando a cola de procesamiento")
 		return
 	}
 	defer vc.rabbitMQService.Close()
@@ -210,7 +209,7 @@ func (vc *VideoControllerImpl) CreateVideo(c *gin.Context) {
 	taskJSON, err := json.Marshal(videoTask)
 	if err != nil {
 		vc.jobService.UpdateJobStatus(createdJob.Id, "failed", "Error serializando tarea")
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error preparando tarea"})
+		helpers.Error(c, http.StatusInternalServerError, "Error preparando tarea")
 		return
 	}
 
@@ -218,7 +217,7 @@ func (vc *VideoControllerImpl) CreateVideo(c *gin.Context) {
 	err = vc.rabbitMQService.Publish(cfg.RabbitMQVideoQueue, taskJSON)
 	if err != nil {
 		vc.jobService.UpdateJobStatus(createdJob.Id, "failed", "Error publicando a cola")
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error encolando tarea"})
+		helpers.Error(c, http.StatusInternalServerError, "Error encolando tarea")
 		return
 	}
 
@@ -226,7 +225,7 @@ func (vc *VideoControllerImpl) CreateVideo(c *gin.Context) {
 
 	// 10. Responder inmediatamente con el job_id
 	// NOTA: La limpieza de archivos locales la hace el WORKER después de procesar
-	c.JSON(http.StatusAccepted, gin.H{
+	helpers.Success(c, http.StatusAccepted, gin.H{
 		"job_id":  createdJob.Id,
 		"status":  createdJob.Status,
 		"message": "Video en cola de procesamiento. Consulta GET /jobs/" + createdJob.Id,
@@ -257,7 +256,7 @@ func (vc *VideoControllerImpl) UpdateVideo(c *gin.Context) {
 
 	user, exists := c.Get("user")
 	if !exists {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "User not found in context"})
+		helpers.Error(c, http.StatusInternalServerError, "User not found in context")
 		return
 	}
 	authenticatedUser := user.(*models.User)
@@ -269,7 +268,7 @@ func (vc *VideoControllerImpl) UpdateVideo(c *gin.Context) {
 	}
 
 	if video.UserID != authenticatedUser.Id {
-		c.JSON(http.StatusForbidden, gin.H{"error": "You are not the owner of this video"})
+		helpers.Error(c, http.StatusForbidden, "You are not the owner of this video")
 		return
 	}
 
@@ -288,7 +287,7 @@ func (vc *VideoControllerImpl) UpdateVideo(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, updated)
+	helpers.Success(c, http.StatusOK, updated)
 }
 
 // DeleteVideo godoc
@@ -306,7 +305,7 @@ func (vc *VideoControllerImpl) DeleteVideo(c *gin.Context) {
 
 	user, exists := c.Get("user")
 	if !exists {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "User not found in context"})
+		helpers.Error(c, http.StatusInternalServerError, "User not found in context")
 		return
 	}
 	authenticatedUser := user.(*models.User)
@@ -318,7 +317,7 @@ func (vc *VideoControllerImpl) DeleteVideo(c *gin.Context) {
 	}
 
 	if video.UserID != authenticatedUser.Id {
-		c.JSON(http.StatusForbidden, gin.H{"error": "You are not the owner of this video"})
+		helpers.Error(c, http.StatusForbidden, "You are not the owner of this video")
 		return
 	}
 
@@ -327,7 +326,7 @@ func (vc *VideoControllerImpl) DeleteVideo(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "Video deleted successfully"})
+	helpers.Success(c, http.StatusOK, gin.H{"message": "Video deleted successfully"})
 }
 
 type VideoControllerImpl struct {
