@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 	"github.com/unbot2313/go-streaming-service/config"
@@ -17,6 +18,8 @@ type VideoController interface {
 	CreateVideo(c *gin.Context)
 	GetVideoByID(c *gin.Context)
 	IncrementViews(c *gin.Context)
+	UpdateVideo(c *gin.Context)
+	DeleteVideo(c *gin.Context)
 }
 
 // CreateVideoRequest valida los campos del formulario de upload
@@ -25,24 +28,38 @@ type CreateVideoRequest struct {
 	Description string `form:"description" binding:"max=500"`
 }
 
-// SaveVideo		godoc
-// @Summary 		Save a video
-// @Description 	Upload a video file along with metadata (title and description) and save it to the AWS bucket.
+// GetLatestVideos	godoc
+// @Summary 		Get latest videos with pagination
+// @Description 	Retrieve the latest videos ordered by creation date. Supports pagination via query params.
 // @Tags 			streaming
 // @Produce 		json
-// @Success 		200 {object} models.VideoSwagger{}
+// @Param 			page query int false "Page number (default: 1)" default(1)
+// @Param 			page_size query int false "Items per page (default: 10, max: 50)" default(10)
+// @Success 		200 {object} services.PaginatedVideos{}
 // @Failure 		400 {object} map[string]string
 // @Failure 		500 {object} map[string]string
 // @Router 			/streaming/ [get]
 func (vc *VideoControllerImpl) GetLatestVideos(c *gin.Context) {
-	videos, err := vc.databaseVideoService.FindLatestVideos()
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "10"))
 
+	if page < 1 {
+		page = 1
+	}
+	if pageSize < 1 {
+		pageSize = 10
+	}
+	if pageSize > 50 {
+		pageSize = 50
+	}
+
+	result, err := vc.databaseVideoService.FindLatestVideos(page, pageSize)
 	if err != nil {
 		helpers.HandleError(c, http.StatusInternalServerError, "Could not retrieve videos", err)
 		return
 	}
 
-	c.JSON(http.StatusOK, videos)
+	helpers.Success(c, http.StatusOK, result)
 }
 
 
@@ -66,7 +83,7 @@ func (vc *VideoControllerImpl) GetVideoByID(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, video)
+	helpers.Success(c, http.StatusOK, video)
 }
 
 // IncrementViews		godoc
@@ -89,8 +106,7 @@ func (vc *VideoControllerImpl) IncrementViews(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, video)
-	
+	helpers.Success(c, http.StatusOK, video)
 }
 
 // CreateVideo godoc
@@ -112,26 +128,26 @@ func (vc *VideoControllerImpl) CreateVideo(c *gin.Context) {
 	// 1. Recuperar el usuario del contexto (del middleware JWT)
 	user, exists := c.Get("user")
 	if !exists {
-		c.JSON(500, gin.H{"error": "User not found in context"})
+		helpers.HandleError(c, http.StatusInternalServerError, "User not found in context", nil)
 		return
 	}
 
 	authenticatedUser, ok := user.(*models.User)
 	if !ok {
-		c.JSON(500, gin.H{"error": "Failed to parse user data"})
+		helpers.HandleError(c, http.StatusInternalServerError, "Failed to parse user data", nil)
 		return
 	}
 
 	// 2. Validar campos requeridos (title obligatorio)
 	var req CreateVideoRequest
 	if err := c.ShouldBind(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "title es requerido (máx 100 caracteres)"})
+		helpers.HandleError(c, http.StatusBadRequest, "title es requerido (max 100 caracteres)", err)
 		return
 	}
 
 	// 3. Validar extensión del archivo
 	if !vc.videoService.IsValidVideoExtension(c) {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "El archivo no es un tipo de video válido."})
+		helpers.HandleError(c, http.StatusBadRequest, "El archivo no es un tipo de video valido", nil)
 		return
 	}
 
@@ -139,7 +155,7 @@ func (vc *VideoControllerImpl) CreateVideo(c *gin.Context) {
 	fileSize := c.Request.ContentLength
 	const maxFileSize = 100 * 1024 * 1024
 	if fileSize > maxFileSize {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "El archivo excede el límite de tamaño permitido."})
+		helpers.HandleError(c, http.StatusBadRequest, "El archivo excede el limite de tamaño permitido", nil)
 		return
 	}
 
@@ -170,16 +186,7 @@ func (vc *VideoControllerImpl) CreateVideo(c *gin.Context) {
 		return
 	}
 
-	// 7. Conectar a RabbitMQ
-	err = vc.rabbitMQService.Connect()
-	if err != nil {
-		vc.jobService.UpdateJobStatus(createdJob.Id, "failed", "Error conectando a RabbitMQ")
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error conectando a cola de procesamiento"})
-		return
-	}
-	defer vc.rabbitMQService.Close()
-
-	// 8. Crear y serializar tarea para la cola
+	// 7. Crear y serializar tarea para la cola
 	videoTask := models.VideoTask{
 		JobID:       createdJob.Id,
 		UserID:      authenticatedUser.Id,
@@ -193,7 +200,7 @@ func (vc *VideoControllerImpl) CreateVideo(c *gin.Context) {
 	taskJSON, err := json.Marshal(videoTask)
 	if err != nil {
 		vc.jobService.UpdateJobStatus(createdJob.Id, "failed", "Error serializando tarea")
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error preparando tarea"})
+		helpers.HandleError(c, http.StatusInternalServerError, "Error preparando tarea", err)
 		return
 	}
 
@@ -201,7 +208,7 @@ func (vc *VideoControllerImpl) CreateVideo(c *gin.Context) {
 	err = vc.rabbitMQService.Publish(cfg.RabbitMQVideoQueue, taskJSON)
 	if err != nil {
 		vc.jobService.UpdateJobStatus(createdJob.Id, "failed", "Error publicando a cola")
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error encolando tarea"})
+		helpers.HandleError(c, http.StatusInternalServerError, "Error encolando tarea", err)
 		return
 	}
 
@@ -209,11 +216,108 @@ func (vc *VideoControllerImpl) CreateVideo(c *gin.Context) {
 
 	// 10. Responder inmediatamente con el job_id
 	// NOTA: La limpieza de archivos locales la hace el WORKER después de procesar
-	c.JSON(http.StatusAccepted, gin.H{
+	helpers.Success(c, http.StatusAccepted, gin.H{
 		"job_id":  createdJob.Id,
 		"status":  createdJob.Status,
 		"message": "Video en cola de procesamiento. Consulta GET /jobs/" + createdJob.Id,
 	})
+}
+
+// UpdateVideoRequest validates the fields for updating a video
+type UpdateVideoRequest struct {
+	Title       string `json:"title" binding:"required,min=1,max=100"`
+	Description string `json:"description" binding:"max=500"`
+}
+
+// UpdateVideo godoc
+// @Summary		Update a video's metadata
+// @Description	Update title and description of a video. Only the owner can update.
+// @Tags		streaming
+// @Accept		json
+// @Produce		json
+// @Param		videoid path string true "Video ID"
+// @Param		body body UpdateVideoRequest true "Updated video data"
+// @Success		200 {object} models.VideoSwagger{}
+// @Failure		400 {object} map[string]string
+// @Failure		403 {object} map[string]string
+// @Failure		404 {object} map[string]string
+// @Router		/streaming/{videoid} [put]
+func (vc *VideoControllerImpl) UpdateVideo(c *gin.Context) {
+	videoId := c.Param("videoid")
+
+	user, exists := c.Get("user")
+	if !exists {
+		helpers.HandleError(c, http.StatusInternalServerError, "User not found in context", nil)
+		return
+	}
+	authenticatedUser := user.(*models.User)
+
+	video, err := vc.databaseVideoService.FindVideoByID(videoId)
+	if err != nil {
+		helpers.HandleError(c, http.StatusNotFound, "Video not found", err)
+		return
+	}
+
+	if video.UserID != authenticatedUser.Id {
+		helpers.HandleError(c, http.StatusForbidden, "You are not the owner of this video", nil)
+		return
+	}
+
+	var req UpdateVideoRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		helpers.HandleError(c, http.StatusBadRequest, "Invalid input", err)
+		return
+	}
+
+	video.Title = req.Title
+	video.Description = req.Description
+
+	updated, err := vc.databaseVideoService.UpdateVideo(video)
+	if err != nil {
+		helpers.HandleError(c, http.StatusInternalServerError, "Could not update video", err)
+		return
+	}
+
+	helpers.Success(c, http.StatusOK, updated)
+}
+
+// DeleteVideo godoc
+// @Summary		Delete a video
+// @Description	Delete a video by ID. Only the owner can delete.
+// @Tags		streaming
+// @Produce		json
+// @Param		videoid path string true "Video ID"
+// @Success		200 {object} map[string]string
+// @Failure		403 {object} map[string]string
+// @Failure		404 {object} map[string]string
+// @Router		/streaming/{videoid} [delete]
+func (vc *VideoControllerImpl) DeleteVideo(c *gin.Context) {
+	videoId := c.Param("videoid")
+
+	user, exists := c.Get("user")
+	if !exists {
+		helpers.HandleError(c, http.StatusInternalServerError, "User not found in context", nil)
+		return
+	}
+	authenticatedUser := user.(*models.User)
+
+	video, err := vc.databaseVideoService.FindVideoByID(videoId)
+	if err != nil {
+		helpers.HandleError(c, http.StatusNotFound, "Video not found", err)
+		return
+	}
+
+	if video.UserID != authenticatedUser.Id {
+		helpers.HandleError(c, http.StatusForbidden, "You are not the owner of this video", nil)
+		return
+	}
+
+	if err := vc.databaseVideoService.DeleteVideo(videoId); err != nil {
+		helpers.HandleError(c, http.StatusInternalServerError, "Could not delete video", err)
+		return
+	}
+
+	helpers.Success(c, http.StatusOK, gin.H{"message": "Video deleted successfully"})
 }
 
 type VideoControllerImpl struct {

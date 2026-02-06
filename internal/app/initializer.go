@@ -7,14 +7,14 @@ import (
 )
 
 // InitializeComponents crea las instancias de los servicios y controladores
-func InitializeComponents() (controllers.UserController, controllers.AuthController, controllers.VideoController, controllers.JobController) {
+func InitializeComponents() (controllers.UserController, controllers.AuthController, controllers.VideoController, controllers.JobController, services.AuthService) {
 	// Inicializa los servicios base
 	userService := services.NewUserService()
 	authService := services.NewAuthService()
 
 	// Inicializa los controladores de usuario y auth
 	userController := controllers.NewUserController(userService)
-	authController := controllers.NewAuthController(authService)
+	authController := controllers.NewAuthController(authService, userService)
 
 	// Inicializa servicios de video con StorageService genérico
 	storageService := storage.NewStorageService()
@@ -23,13 +23,16 @@ func InitializeComponents() (controllers.UserController, controllers.AuthControl
 	videoService := services.NewVideoService(storageService, filesService, ffmpegService)
 	databaseVideoService := services.NewDatabaseVideoService()
 
-	// Inicializa servicios de jobs y RabbitMQ
+	// Inicializa servicios de jobs y RabbitMQ (conexión persistente)
 	jobService := services.NewJobService()
 	rabbitMQService := services.NewRabbitMQService()
+	if err := rabbitMQService.Connect(); err != nil {
+		panic("Could not connect to RabbitMQ: " + err.Error())
+	}
 
 	// Inicializa controladores
 	videoController := controllers.NewVideoController(videoService, databaseVideoService, jobService, rabbitMQService)
 	jobController := controllers.NewJobController(jobService)
 
-	return userController, authController, videoController, jobController
+	return userController, authController, videoController, jobController, authService
 }

@@ -61,5 +61,5 @@ func (jc *JobControllerImpl) GetJobByID(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, job)
+	helpers.Success(c, http.StatusOK, job)
 }

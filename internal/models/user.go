@@ -20,6 +20,12 @@ type UserLogin struct {
 	Password string `json:"password" binding:"required"`
 }
 
+type UserRegister struct {
+	Username string `json:"username" binding:"required,min=3,max=100"`
+	Password string `json:"password" binding:"required,min=8"`
+	Email    string `json:"email" binding:"required,email"`
+}
+
 // UserSwagger se usa en la documentacion ya que Swaggo no reconoce
 // los tags de gorms
 type UserSwagger struct {

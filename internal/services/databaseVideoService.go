@@ -9,26 +9,32 @@ import (
 	"gorm.io/gorm"
 )
 
-func (service *databaseVideoService) FindLatestVideos() (*[]*models.VideoModel, error) {
+func (service *databaseVideoService) FindLatestVideos(page, pageSize int) (*PaginatedVideos, error) {
 	db, err := config.GetDB()
 	if err != nil {
 		return nil, err
 	}
 
-	var videos []*models.VideoModel
-
-	// Ordenar por CreatedAt en orden descendente
-	dbCtx := db.Order("created_at DESC").Find(&videos)
-
-	if errors.Is(dbCtx.Error, gorm.ErrRecordNotFound) {
-		return nil, fmt.Errorf("no videos found")
+	var total int64
+	if err := db.Model(&models.VideoModel{}).Count(&total).Error; err != nil {
+		return nil, err
 	}
+
+	var videos []*models.VideoModel
+	offset := (page - 1) * pageSize
+
+	dbCtx := db.Order("created_at DESC").Limit(pageSize).Offset(offset).Find(&videos)
 
 	if dbCtx.Error != nil {
 		return nil, dbCtx.Error
 	}
 
-	return &videos, nil
+	return &PaginatedVideos{
+		Data:     videos,
+		Page:     page,
+		PageSize: pageSize,
+		Total:    total,
+	}, nil
 }
 
 func (service *databaseVideoService) FindVideoByID(videoId string) (*models.VideoModel, error) {
@@ -137,18 +143,59 @@ func (service *databaseVideoService) CreateVideo(videoData *models.Video, userId
 }
 
 func (service *databaseVideoService) UpdateVideo(video *models.VideoModel) (*models.VideoModel, error) {
-	return &models.VideoModel{}, nil
+	db, err := config.GetDB()
+	if err != nil {
+		return nil, err
+	}
+
+	var existing models.VideoModel
+	if err := db.Where("id = ?", video.Id).First(&existing).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, fmt.Errorf("video with id %s not found", video.Id)
+		}
+		return nil, err
+	}
+
+	if err := db.Model(&existing).Updates(map[string]interface{}{
+		"title":       video.Title,
+		"description": video.Description,
+	}).Error; err != nil {
+		return nil, err
+	}
+
+	return &existing, nil
 }
 
 func (service *databaseVideoService) DeleteVideo(videoId string) error {
+	db, err := config.GetDB()
+	if err != nil {
+		return err
+	}
+
+	result := db.Where("id = ?", videoId).Delete(&models.VideoModel{})
+	if result.Error != nil {
+		return result.Error
+	}
+
+	if result.RowsAffected == 0 {
+		return fmt.Errorf("video with id %s not found", videoId)
+	}
+
 	return nil
 }
 
 
 type databaseVideoService struct {}
 
+type PaginatedVideos struct {
+	Data     []*models.VideoModel `json:"data"`
+	Page     int                  `json:"page"`
+	PageSize int                  `json:"page_size"`
+	Total    int64                `json:"total"`
+}
+
 type DatabaseVideoService interface {
-	FindLatestVideos() (*[]*models.VideoModel, error)
+	FindLatestVideos(page, pageSize int) (*PaginatedVideos, error)
 	FindVideoByID(videoId string) (*models.VideoModel, error) 
 	IncrementViews(videoId string) (*models.VideoModel, error)
 	FindUserVideos(userId string) ([]*models.VideoModel, error)

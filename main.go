@@ -1,6 +1,7 @@
 package main
 
 import (
+	"net/http"
 	"strings"
 
 	"github.com/gin-contrib/cors"
@@ -13,6 +14,7 @@ import (
 	"github.com/unbot2313/go-streaming-service/internal/app"
 	"github.com/unbot2313/go-streaming-service/internal/middlewares"
 	"github.com/unbot2313/go-streaming-service/internal/routes"
+	"github.com/unbot2313/go-streaming-service/internal/services"
 )
 
 // @title Go Streaming Service API
@@ -56,13 +58,49 @@ func main() {
 	v1Group.Static("/static", "./static/temp")
 
 	// Inicializar los componentes de la aplicación
-	userController, authController, videoController, jobController := app.InitializeComponents()
+	userController, authController, videoController, jobController, authService := app.InitializeComponents()
 
 	// Configurar las rutas
-	routes.SetupRoutes(v1Group, userController, authController, videoController, jobController)
+	routes.SetupRoutes(v1Group, userController, authController, videoController, jobController, authService)
 	// Configurar la documentación de Swagger
 	r.GET("/docs/*any", ginSwagger.WrapHandler(swaggerfiles.Handler))
 
+
+	// Health check endpoints (fuera de /api/v1, sin auth ni rate limit)
+	r.GET("/health", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{"status": "ok"})
+	})
+
+	r.GET("/ready", func(c *gin.Context) {
+		checks := gin.H{}
+
+		// Check DB
+		db, err := config.GetDB()
+		if err != nil {
+			checks["database"] = "error: " + err.Error()
+			c.JSON(http.StatusServiceUnavailable, gin.H{"status": "not ready", "checks": checks})
+			return
+		}
+		sqlDB, err := db.DB()
+		if err != nil || sqlDB.Ping() != nil {
+			checks["database"] = "unreachable"
+			c.JSON(http.StatusServiceUnavailable, gin.H{"status": "not ready", "checks": checks})
+			return
+		}
+		checks["database"] = "ok"
+
+		// Check RabbitMQ
+		rabbitService := services.NewRabbitMQService()
+		if err := rabbitService.Connect(); err != nil {
+			checks["rabbitmq"] = "unreachable"
+			c.JSON(http.StatusServiceUnavailable, gin.H{"status": "not ready", "checks": checks})
+			return
+		}
+		rabbitService.Close()
+		checks["rabbitmq"] = "ok"
+
+		c.JSON(http.StatusOK, gin.H{"status": "ready", "checks": checks})
+	})
 
 	r.Run(":3003")
 
