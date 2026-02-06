@@ -38,7 +38,7 @@ func (controller *UserControllerImp) GetUserByID(c *gin.Context) {
 		helpers.HandleError(c, http.StatusNotFound, "User not found", err)
 		return
 	}
-	c.JSON(200, users)
+	helpers.Success(c, http.StatusOK, users)
 }
 
 // GetUserByUserName		godoc
@@ -58,7 +58,7 @@ func (controller *UserControllerImp) GetUserByUserName(c *gin.Context) {
 		helpers.HandleError(c, http.StatusNotFound, "User not found", err)
 		return
 	}
-	c.JSON(200, users)
+	helpers.Success(c, http.StatusOK, users)
 }
 
 // CreateUser		godoc
@@ -86,7 +86,7 @@ func (controller *UserControllerImp) CreateUser(c *gin.Context) {
 		return
 	}
 
-	c.JSON(200, gin.H{"message": "User created", "user": newUser})
+	helpers.Success(c, http.StatusCreated, newUser)
 }
 
 // GetUserByID		godoc
@@ -120,12 +120,12 @@ func (controller *UserControllerImp) DeleteUserByID(c *gin.Context) {
 		helpers.HandleError(c, http.StatusNotFound, "User not found", err)
 		return
 	}
-	c.JSON(200, gin.H{"message": "User deleted"})
+	helpers.Success(c, http.StatusOK, gin.H{"message": "User deleted"})
 }
 
 
 
 
-func NewUserController(service services.UserService) *UserControllerImp {
+func NewUserController(service services.UserService) UserController {
 	return &UserControllerImp{service: service}
 }
