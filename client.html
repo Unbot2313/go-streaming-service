@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Streaming Client</title>
+  <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, sans-serif; background: #111; color: #eee; padding: 2rem; max-width: 900px; margin: 0 auto; }
+    h1 { margin-bottom: 1.5rem; font-size: 1.4rem; }
+    label { display: block; margin-bottom: .3rem; font-size: .85rem; color: #aaa; }
+    input { width: 100%; padding: .6rem; border: 1px solid #333; border-radius: 6px; background: #1a1a1a; color: #eee; font-size: .9rem; margin-bottom: 1rem; }
+    button { padding: .6rem 1.5rem; border: none; border-radius: 6px; background: #4f46e5; color: #fff; font-size: .9rem; cursor: pointer; }
+    button:hover { background: #4338ca; }
+    #player-section { display: none; margin-top: 2rem; }
+    video { width: 100%; border-radius: 8px; background: #000; }
+    .info { margin-top: 1rem; }
+    .info h2 { font-size: 1.1rem; margin-bottom: .3rem; }
+    .info p { font-size: .85rem; color: #aaa; }
+    .meta { display: flex; gap: 1rem; margin-top: .5rem; font-size: .8rem; color: #888; }
+    #error { color: #f87171; margin-top: 1rem; display: none; }
+    #thumbnail { max-width: 200px; border-radius: 6px; margin-top: .5rem; }
+  </style>
+</head>
+<body>
+  <h1>HLS Streaming Client</h1>
+
+  <label for="api-url">API Base URL</label>
+  <input id="api-url" type="text" value="http://localhost:3003/api/v1" placeholder="http://localhost:3003/api/v1">
+
+  <label for="token">JWT Token</label>
+  <input id="token" type="text" placeholder="Pega tu token aqui...">
+
+  <label for="video-id">Video ID</label>
+  <input id="video-id" type="text" placeholder="UUID del video">
+
+  <button onclick="loadVideo()">Cargar Video</button>
+
+  <div id="error"></div>
+
+  <div id="player-section">
+    <video id="video" controls></video>
+    <div class="info">
+      <h2 id="title"></h2>
+      <p id="description"></p>
+      <div class="meta">
+        <span id="duration"></span>
+        <span id="views"></span>
+      </div>
+      <img id="thumbnail" alt="thumbnail" style="display:none">
+    </div>
+  </div>
+
+  <script>
+    let hls = null;
+
+    async function loadVideo() {
+      const baseUrl = document.getElementById('api-url').value.replace(/\/+$/, '');
+      const token = document.getElementById('token').value.trim();
+      const videoId = document.getElementById('video-id').value.trim();
+      const errorEl = document.getElementById('error');
+      const playerSection = document.getElementById('player-section');
+
+      errorEl.style.display = 'none';
+      playerSection.style.display = 'none';
+
+      if (!videoId) {
+        showError('Ingresa un Video ID');
+        return;
+      }
+
+      try {
+        const headers = {};
+        if (token) headers['Authorization'] = 'Bearer ' + token;
+
+        const res = await fetch(`${baseUrl}/streaming/id/${videoId}`, { headers });
+        const json = await res.json();
+
+        if (!json.success) {
+          showError(json.error?.message || 'Error al obtener el video');
+          return;
+        }
+
+        const video = json.data;
+        const m3u8Url = video.video;
+
+        if (!m3u8Url) {
+          showError('El video no tiene URL de streaming (.m3u8)');
+          return;
+        }
+
+        // Update info
+        document.getElementById('title').textContent = video.title || 'Sin titulo';
+        document.getElementById('description').textContent = video.description || '';
+        document.getElementById('duration').textContent = video.duration ? 'Duracion: ' + video.duration : '';
+        document.getElementById('views').textContent = video.views != null ? 'Vistas: ' + video.views : '';
+
+        if (video.thumbnail) {
+          const thumbEl = document.getElementById('thumbnail');
+          thumbEl.src = video.thumbnail;
+          thumbEl.style.display = 'block';
+        }
+
+        playerSection.style.display = 'block';
+        playHLS(m3u8Url);
+
+        // Increment view count
+        fetch(`${baseUrl}/streaming/views/${videoId}`, { method: 'PATCH', headers }).catch(() => {});
+
+      } catch (err) {
+        showError('No se pudo conectar a la API: ' + err.message);
+      }
+    }
+
+    function playHLS(url) {
+      const videoEl = document.getElementById('video');
+
+      if (hls) {
+        hls.destroy();
+        hls = null;
+      }
+
+      if (Hls.isSupported()) {
+        hls = new Hls();
+        hls.loadSource(url);
+        hls.attachMedia(videoEl);
+        hls.on(Hls.Events.MANIFEST_PARSED, () => videoEl.play());
+        hls.on(Hls.Events.ERROR, (_, data) => {
+          if (data.fatal) showError('Error HLS: ' + data.type + ' - ' + data.details);
+        });
+      } else if (videoEl.canPlayType('application/vnd.apple.mpegurl')) {
+        // Safari native HLS
+        videoEl.src = url;
+        videoEl.addEventListener('loadedmetadata', () => videoEl.play(), { once: true });
+      } else {
+        showError('Tu navegador no soporta HLS');
+      }
+    }
+
+    function showError(msg) {
+      const el = document.getElementById('error');
+      el.textContent = msg;
+      el.style.display = 'block';
+    }
+  </script>
+</body>
+</html>

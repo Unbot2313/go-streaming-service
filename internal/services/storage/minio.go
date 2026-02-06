@@ -23,10 +23,44 @@ type MinIOStorage struct {
 // NewMinIOStorage crea una nueva instancia de MinIOStorage
 func NewMinIOStorage() StorageService {
 	cfg := config.GetConfig()
+	client := config.GetMinIOClient()
+	bucket := cfg.MinIOBucketName
+	ctx := context.Background()
+
+	// Crear bucket si no existe
+	exists, err := client.BucketExists(ctx, bucket)
+	if err != nil {
+		log.Fatalf("Error verificando bucket MinIO: %v", err)
+	}
+
+	if !exists {
+		err = client.MakeBucket(ctx, bucket, minio.MakeBucketOptions{})
+		if err != nil {
+			log.Fatalf("Error creando bucket MinIO: %v", err)
+		}
+		log.Printf("[MinIO] Bucket '%s' creado", bucket)
+	}
+
+	// Política pública de solo lectura
+	policy := fmt.Sprintf(`{
+		"Version": "2012-10-17",
+		"Statement": [{
+			"Effect": "Allow",
+			"Principal": {"AWS": ["*"]},
+			"Action": ["s3:GetObject"],
+			"Resource": ["arn:aws:s3:::%s/*"]
+		}]
+	}`, bucket)
+
+	err = client.SetBucketPolicy(ctx, bucket, policy)
+	if err != nil {
+		log.Fatalf("Error configurando política pública en bucket MinIO: %v", err)
+	}
+	log.Printf("[MinIO] Bucket '%s' configurado como público (lectura)", bucket)
 
 	return &MinIOStorage{
-		client:     config.GetMinIOClient(),
-		bucketName: cfg.MinIOBucketName,
+		client:     client,
+		bucketName: bucket,
 		endpoint:   cfg.MinIOEndpoint,
 	}
 }
