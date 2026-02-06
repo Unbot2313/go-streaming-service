@@ -63,7 +63,13 @@ services:
       - rabbitmq
     volumes:
       - .:/app
-    command: ["go", "run", "main.go"] # Comando para INICIAR EL SERVIDOR
+    command: ["go", "run", "main.go"]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3003/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
 
 volumes:
   postgres_data:
