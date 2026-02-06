@@ -1,5 +1,32 @@
 basePath: /api/v1
 definitions:
+  controllers.UpdateVideoRequest:
+    properties:
+      description:
+        maxLength: 500
+        type: string
+      title:
+        maxLength: 100
+        minLength: 1
+        type: string
+    required:
+    - title
+    type: object
+  helpers.APIError:
+    properties:
+      code:
+        type: integer
+      message:
+        type: string
+    type: object
+  helpers.APIResponse:
+    properties:
+      data: {}
+      error:
+        $ref: '#/definitions/helpers.APIError'
+      success:
+        type: boolean
+    type: object
   models.JobSwagger:
     properties:
       description:
@@ -42,15 +69,27 @@ definitions:
     - password
     - username
     type: object
+  models.UserRegister:
+    properties:
+      email:
+        type: string
+      password:
+        minLength: 8
+        type: string
+      username:
+        maxLength: 100
+        minLength: 3
+        type: string
+    required:
+    - email
+    - password
+    - username
+    type: object
   models.UserSwagger:
     properties:
       email:
         type: string
       id:
-        type: string
-      password:
-        type: string
-      refresh_token:
         type: string
       username:
         type: string
@@ -58,6 +97,31 @@ definitions:
         items:
           $ref: '#/definitions/models.VideoSwagger'
         type: array
+    type: object
+  models.VideoModel:
+    properties:
+      createdAt:
+        type: string
+      deletedAt:
+        type: string
+      description:
+        type: string
+      duration:
+        type: string
+      id:
+        type: string
+      thumbnail:
+        type: string
+      title:
+        type: string
+      updatedAt:
+        type: string
+      user_id:
+        type: string
+      video:
+        type: string
+      views:
+        type: integer
     type: object
   models.VideoSwagger:
     properties:
@@ -78,6 +142,19 @@ definitions:
       views:
         type: integer
     type: object
+  services.PaginatedVideos:
+    properties:
+      data:
+        items:
+          $ref: '#/definitions/models.VideoModel'
+        type: array
+      page:
+        type: integer
+      page_size:
+        type: integer
+      total:
+        type: integer
+    type: object
 host: localhost:3003
 info:
   contact: {}
@@ -90,8 +167,10 @@ paths:
     post:
       consumes:
       - application/json
+      description: Authenticate with username and password to get access and refresh
+        tokens
       parameters:
-      - description: User object containing all user details
+      - description: User credentials
         in: body
         name: user
         required: true
@@ -103,27 +182,190 @@ paths:
         "200":
           description: OK
           schema:
-            additionalProperties:
-              type: string
-            type: object
-        "404":
-          description: Not Found
+            allOf:
+            - $ref: '#/definitions/helpers.APIResponse'
+            - properties:
+                data:
+                  properties:
+                    access_token:
+                      type: string
+                    refresh_token:
+                      type: string
+                    user:
+                      type: string
+                  type: object
+              type: object
+        "400":
+          description: Bad Request
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            allOf:
+            - $ref: '#/definitions/helpers.APIResponse'
+            - properties:
+                error:
+                  $ref: '#/definitions/helpers.APIError'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            allOf:
+            - $ref: '#/definitions/helpers.APIResponse'
+            - properties:
+                error:
+                  $ref: '#/definitions/helpers.APIError'
+              type: object
+      summary: Log in user
+      tags:
+      - Auth
+  /auth/logout:
+    post:
+      description: Revoke the refresh token for the authenticated user
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/helpers.APIResponse'
+            - properties:
+                data:
+                  properties:
+                    message:
+                      type: string
+                  type: object
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            allOf:
+            - $ref: '#/definitions/helpers.APIResponse'
+            - properties:
+                error:
+                  $ref: '#/definitions/helpers.APIError'
+              type: object
         "500":
           description: Internal Server Error
           schema:
-            additionalProperties:
+            allOf:
+            - $ref: '#/definitions/helpers.APIResponse'
+            - properties:
+                error:
+                  $ref: '#/definitions/helpers.APIError'
+              type: object
+      security:
+      - BearerAuth: []
+      summary: Logout user
+      tags:
+      - Auth
+  /auth/refresh:
+    post:
+      consumes:
+      - application/json
+      description: Exchange a valid refresh token for a new access/refresh token pair
+      parameters:
+      - description: Refresh token
+        in: body
+        name: body
+        required: true
+        schema:
+          properties:
+            refresh_token:
               type: string
-            type: object
-      summary: Log in user
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/helpers.APIResponse'
+            - properties:
+                data:
+                  properties:
+                    access_token:
+                      type: string
+                    refresh_token:
+                      type: string
+                  type: object
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            allOf:
+            - $ref: '#/definitions/helpers.APIResponse'
+            - properties:
+                error:
+                  $ref: '#/definitions/helpers.APIError'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            allOf:
+            - $ref: '#/definitions/helpers.APIResponse'
+            - properties:
+                error:
+                  $ref: '#/definitions/helpers.APIError'
+              type: object
+      summary: Refresh access token
+      tags:
+      - Auth
+  /auth/register:
+    post:
+      consumes:
+      - application/json
+      description: Create a new user account and return access and refresh tokens
+      parameters:
+      - description: User registration data
+        in: body
+        name: user
+        required: true
+        schema:
+          $ref: '#/definitions/models.UserRegister'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            allOf:
+            - $ref: '#/definitions/helpers.APIResponse'
+            - properties:
+                data:
+                  properties:
+                    access_token:
+                      type: string
+                    refresh_token:
+                      type: string
+                    user:
+                      $ref: '#/definitions/models.UserSwagger'
+                  type: object
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            allOf:
+            - $ref: '#/definitions/helpers.APIResponse'
+            - properties:
+                error:
+                  $ref: '#/definitions/helpers.APIError'
+              type: object
+        "409":
+          description: Conflict
+          schema:
+            allOf:
+            - $ref: '#/definitions/helpers.APIResponse'
+            - properties:
+                error:
+                  $ref: '#/definitions/helpers.APIError'
+              type: object
+      summary: Register a new user
       tags:
       - Auth
   /jobs/{jobid}:
     get:
-      description: Get the status of a video processing job
+      description: Get the status of a video processing job. Only the job owner can
+        view it.
       parameters:
       - description: Job ID
         in: path
@@ -136,46 +378,149 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/models.JobSwagger'
+            allOf:
+            - $ref: '#/definitions/helpers.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/models.JobSwagger'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            allOf:
+            - $ref: '#/definitions/helpers.APIResponse'
+            - properties:
+                error:
+                  $ref: '#/definitions/helpers.APIError'
+              type: object
+        "403":
+          description: Forbidden
+          schema:
+            allOf:
+            - $ref: '#/definitions/helpers.APIResponse'
+            - properties:
+                error:
+                  $ref: '#/definitions/helpers.APIError'
+              type: object
         "404":
           description: Not Found
           schema:
-            additionalProperties:
-              type: string
-            type: object
-        "500":
-          description: Internal Server Error
-          schema:
-            additionalProperties:
-              type: string
-            type: object
+            allOf:
+            - $ref: '#/definitions/helpers.APIResponse'
+            - properties:
+                error:
+                  $ref: '#/definitions/helpers.APIError'
+              type: object
+      security:
+      - BearerAuth: []
       summary: Get job status by ID
       tags:
       - jobs
-  /streaming/:
-    get:
-      description: Upload a video file along with metadata (title and description)
-        and save it to the AWS bucket.
+  /streaming/{videoid}:
+    delete:
+      description: Delete a video by ID. Only the owner can delete.
+      parameters:
+      - description: Video ID
+        in: path
+        name: videoid
+        required: true
+        type: string
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/models.VideoSwagger'
+            allOf:
+            - $ref: '#/definitions/helpers.APIResponse'
+            - properties:
+                data:
+                  properties:
+                    message:
+                      type: string
+                  type: object
+              type: object
+        "403":
+          description: Forbidden
+          schema:
+            allOf:
+            - $ref: '#/definitions/helpers.APIResponse'
+            - properties:
+                error:
+                  $ref: '#/definitions/helpers.APIError'
+              type: object
+        "404":
+          description: Not Found
+          schema:
+            allOf:
+            - $ref: '#/definitions/helpers.APIResponse'
+            - properties:
+                error:
+                  $ref: '#/definitions/helpers.APIError'
+              type: object
+      security:
+      - BearerAuth: []
+      summary: Delete a video
+      tags:
+      - streaming
+    put:
+      consumes:
+      - application/json
+      description: Update title and description of a video. Only the owner can update.
+      parameters:
+      - description: Video ID
+        in: path
+        name: videoid
+        required: true
+        type: string
+      - description: Updated video data
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/controllers.UpdateVideoRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/helpers.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/models.VideoSwagger'
+              type: object
         "400":
           description: Bad Request
           schema:
-            additionalProperties:
-              type: string
-            type: object
-        "500":
-          description: Internal Server Error
+            allOf:
+            - $ref: '#/definitions/helpers.APIResponse'
+            - properties:
+                error:
+                  $ref: '#/definitions/helpers.APIError'
+              type: object
+        "403":
+          description: Forbidden
           schema:
-            additionalProperties:
-              type: string
-            type: object
-      summary: Save a video
+            allOf:
+            - $ref: '#/definitions/helpers.APIResponse'
+            - properties:
+                error:
+                  $ref: '#/definitions/helpers.APIError'
+              type: object
+        "404":
+          description: Not Found
+          schema:
+            allOf:
+            - $ref: '#/definitions/helpers.APIResponse'
+            - properties:
+                error:
+                  $ref: '#/definitions/helpers.APIError'
+              type: object
+      security:
+      - BearerAuth: []
+      summary: Update a video's metadata
       tags:
       - streaming
   /streaming/id/{videoid}:
@@ -193,20 +538,61 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/models.VideoSwagger'
-        "400":
-          description: Bad Request
+            allOf:
+            - $ref: '#/definitions/helpers.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/models.VideoSwagger'
+              type: object
+        "404":
+          description: Not Found
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            allOf:
+            - $ref: '#/definitions/helpers.APIResponse'
+            - properties:
+                error:
+                  $ref: '#/definitions/helpers.APIError'
+              type: object
+      summary: Get a video by ID
+      tags:
+      - streaming
+  /streaming/latest:
+    get:
+      description: Retrieve the latest videos ordered by creation date. Supports pagination
+        via query params.
+      parameters:
+      - default: 1
+        description: 'Page number (default: 1)'
+        in: query
+        name: page
+        type: integer
+      - default: 10
+        description: 'Items per page (default: 10, max: 50)'
+        in: query
+        name: page_size
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/helpers.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/services.PaginatedVideos'
+              type: object
         "500":
           description: Internal Server Error
           schema:
-            additionalProperties:
-              type: string
-            type: object
-      summary: Get a video by ID
+            allOf:
+            - $ref: '#/definitions/helpers.APIResponse'
+            - properties:
+                error:
+                  $ref: '#/definitions/helpers.APIError'
+              type: object
+      summary: Get latest videos with pagination
       tags:
       - streaming
   /streaming/upload:
@@ -236,19 +622,41 @@ paths:
         "202":
           description: Accepted
           schema:
-            $ref: '#/definitions/models.JobSwagger'
+            allOf:
+            - $ref: '#/definitions/helpers.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/models.JobSwagger'
+              type: object
         "400":
           description: Bad Request
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            allOf:
+            - $ref: '#/definitions/helpers.APIResponse'
+            - properties:
+                error:
+                  $ref: '#/definitions/helpers.APIError'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            allOf:
+            - $ref: '#/definitions/helpers.APIResponse'
+            - properties:
+                error:
+                  $ref: '#/definitions/helpers.APIError'
+              type: object
         "500":
           description: Internal Server Error
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            allOf:
+            - $ref: '#/definitions/helpers.APIResponse'
+            - properties:
+                error:
+                  $ref: '#/definitions/helpers.APIError'
+              type: object
+      security:
+      - BearerAuth: []
       summary: Upload a video for processing
       tags:
       - streaming
@@ -267,63 +675,31 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/models.VideoSwagger'
-        "400":
-          description: Bad Request
-          schema:
-            additionalProperties:
-              type: string
-            type: object
+            allOf:
+            - $ref: '#/definitions/helpers.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/models.VideoSwagger'
+              type: object
         "500":
           description: Internal Server Error
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            allOf:
+            - $ref: '#/definitions/helpers.APIResponse'
+            - properties:
+                error:
+                  $ref: '#/definitions/helpers.APIError'
+              type: object
       summary: Increment the views of a video
       tags:
       - streaming
-  /users/:
-    post:
-      consumes:
-      - application/json
-      description: Save user in Db
-      parameters:
-      - description: User object containing all user details
-        in: body
-        name: user
-        required: true
-        schema:
-          $ref: '#/definitions/models.UserLogin'
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/models.UserSwagger'
-        "400":
-          description: Bad Request
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-        "500":
-          description: Internal Server Error
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-      summary: Create a new user
-      tags:
-      - users
   /users/{UserId}:
     delete:
-      description: Delete user by ID ni Db
+      description: Delete user by ID. Only the owner can delete their own account.
       parameters:
       - description: User ID
         in: path
-        name: Id
+        name: UserId
         required: true
         type: string
       produces:
@@ -332,19 +708,44 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/models.UserSwagger'
+            allOf:
+            - $ref: '#/definitions/helpers.APIResponse'
+            - properties:
+                data:
+                  properties:
+                    message:
+                      type: string
+                  type: object
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            allOf:
+            - $ref: '#/definitions/helpers.APIResponse'
+            - properties:
+                error:
+                  $ref: '#/definitions/helpers.APIError'
+              type: object
+        "403":
+          description: Forbidden
+          schema:
+            allOf:
+            - $ref: '#/definitions/helpers.APIResponse'
+            - properties:
+                error:
+                  $ref: '#/definitions/helpers.APIError'
+              type: object
         "404":
           description: Not Found
           schema:
-            additionalProperties:
-              type: string
-            type: object
-        "500":
-          description: Internal Server Error
-          schema:
-            additionalProperties:
-              type: string
-            type: object
+            allOf:
+            - $ref: '#/definitions/helpers.APIResponse'
+            - properties:
+                error:
+                  $ref: '#/definitions/helpers.APIError'
+              type: object
+      security:
+      - BearerAuth: []
       summary: Delete user by ID
       tags:
       - users
@@ -354,7 +755,7 @@ paths:
       parameters:
       - description: User ID
         in: path
-        name: Id
+        name: UserId
         required: true
         type: string
       produces:
@@ -363,19 +764,21 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/models.UserSwagger'
+            allOf:
+            - $ref: '#/definitions/helpers.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/models.UserSwagger'
+              type: object
         "404":
           description: Not Found
           schema:
-            additionalProperties:
-              type: string
-            type: object
-        "500":
-          description: Internal Server Error
-          schema:
-            additionalProperties:
-              type: string
-            type: object
+            allOf:
+            - $ref: '#/definitions/helpers.APIResponse'
+            - properties:
+                error:
+                  $ref: '#/definitions/helpers.APIError'
+              type: object
       summary: Get user by ID
       tags:
       - users
@@ -394,20 +797,27 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/models.UserSwagger'
+            allOf:
+            - $ref: '#/definitions/helpers.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/models.UserSwagger'
+              type: object
         "404":
           description: Not Found
           schema:
-            additionalProperties:
-              type: string
-            type: object
-        "500":
-          description: Internal Server Error
-          schema:
-            additionalProperties:
-              type: string
-            type: object
+            allOf:
+            - $ref: '#/definitions/helpers.APIResponse'
+            - properties:
+                error:
+                  $ref: '#/definitions/helpers.APIError'
+              type: object
       summary: Get user by userName
       tags:
       - users
+securityDefinitions:
+  BearerAuth:
+    in: header
+    name: Authorization
+    type: apiKey
 swagger: "2.0"

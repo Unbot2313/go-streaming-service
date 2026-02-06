@@ -25,7 +25,6 @@ func SetupRoutes(router *gin.RouterGroup, userController controllers.UserControl
 		// Rutas protegidas
 		protectedUserRoutes := userRoutes.Group("")
 		protectedUserRoutes.Use(authMiddleware)
-		protectedUserRoutes.POST("/", userController.CreateUser)
 		protectedUserRoutes.DELETE("/:id", userController.DeleteUserByID)
 	}
 

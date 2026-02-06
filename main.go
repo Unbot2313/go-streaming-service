@@ -24,6 +24,10 @@ import (
 // @host	localhost:3003
 // @BasePath /api/v1
 
+// @SecurityDefinitions.apikey BearerAuth
+// @in header
+// @name Authorization
+
 func main() {
 
 	cfg := config.GetConfig()
