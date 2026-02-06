@@ -47,29 +47,54 @@ services:
     env_file:
       - .env
     ports:
-      - "3003:${PORT}"
+      - "3003:3003"
     environment:
-      DB_HOST: postgres
-      DB_PORT: ${POSTGRES_PORT}
-      DB_USER: ${POSTGRES_USER}
-      DB_PASSWORD: ${POSTGRES_PASSWORD}
-      DB_NAME: ${POSTGRES_DB}
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: ${POSTGRES_PORT}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
       RABBITMQ_HOST: rabbitmq
       RABBITMQ_PORT: 5672
       RABBITMQ_USER: ${RABBITMQ_USER}
       RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD}
+      MINIO_ENDPOINT: minio:9000
     depends_on:
       - postgres
       - rabbitmq
-    volumes:
-      - .:/app
-    command: ["go", "run", "main.go"]
+      - minio
+    restart: always
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3003/health"]
       interval: 30s
       timeout: 5s
       retries: 3
       start_period: 10s
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: go_streaming_worker
+    env_file:
+      - .env
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: ${POSTGRES_PORT}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_USER: ${RABBITMQ_USER}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD}
+      MINIO_ENDPOINT: minio:9000
+    depends_on:
+      - postgres
+      - rabbitmq
+      - minio
+    command: ["/app/worker"]
+    restart: always
 
 volumes:
   postgres_data:
