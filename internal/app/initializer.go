@@ -7,7 +7,7 @@ import (
 )
 
 // InitializeComponents crea las instancias de los servicios y controladores
-func InitializeComponents() (controllers.UserController, controllers.AuthController, controllers.VideoController, controllers.JobController) {
+func InitializeComponents() (controllers.UserController, controllers.AuthController, controllers.VideoController, controllers.JobController, services.AuthService) {
 	// Inicializa los servicios base
 	userService := services.NewUserService()
 	authService := services.NewAuthService()
@@ -31,5 +31,5 @@ func InitializeComponents() (controllers.UserController, controllers.AuthControl
 	videoController := controllers.NewVideoController(videoService, databaseVideoService, jobService, rabbitMQService)
 	jobController := controllers.NewJobController(jobService)
 
-	return userController, authController, videoController, jobController
+	return userController, authController, videoController, jobController, authService
 }

@@ -9,36 +9,32 @@ import (
 	"github.com/unbot2313/go-streaming-service/internal/services"
 )
 
-var authService = services.NewAuthService()
+func AuthMiddleware(authService services.AuthService) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		rawToken := c.GetHeader("Authorization")
 
-func AuthMiddleware(c *gin.Context) {
-	rawToken := c.GetHeader("Authorization")
+		if rawToken == "" {
+			helpers.Error(c, http.StatusUnauthorized, "Authorization header not provided")
+			c.Abort()
+			return
+		}
 
-	if rawToken == "" {
-		helpers.Error(c, http.StatusUnauthorized, "Authorization header not provided")
-		c.Abort()
-		return
+		if !strings.HasPrefix(rawToken, "Bearer ") {
+			helpers.Error(c, http.StatusUnauthorized, "Invalid authorization format. Use: Bearer <token>")
+			c.Abort()
+			return
+		}
+
+		token := strings.TrimPrefix(rawToken, "Bearer ")
+
+		user, err := authService.ValidateToken(token)
+		if err != nil {
+			helpers.HandleError(c, http.StatusUnauthorized, "Invalid or expired token", err)
+			c.Abort()
+			return
+		}
+
+		c.Set("user", user)
+		c.Next()
 	}
-
-	if !strings.HasPrefix(rawToken, "Bearer ") {
-		helpers.Error(c, http.StatusUnauthorized, "Invalid authorization format. Use: Bearer <token>")
-		c.Abort()
-		return
-	}
-
-	token := strings.TrimPrefix(rawToken, "Bearer ")
-
-	user, err := authService.ValidateToken(token)
-
-	if err != nil {
-		helpers.HandleError(c, 401, "Invalid or expired token", err)
-		c.Abort()
-		return
-	}
-
-	// Guardar el usuario autenticado en el contexto de Gin
-	c.Set("user", user)
-
-
-	c.Next()
 }
