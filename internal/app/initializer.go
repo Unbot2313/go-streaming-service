@@ -23,9 +23,12 @@ func InitializeComponents() (controllers.UserController, controllers.AuthControl
 	videoService := services.NewVideoService(storageService, filesService, ffmpegService)
 	databaseVideoService := services.NewDatabaseVideoService()
 
-	// Inicializa servicios de jobs y RabbitMQ
+	// Inicializa servicios de jobs y RabbitMQ (conexión persistente)
 	jobService := services.NewJobService()
 	rabbitMQService := services.NewRabbitMQService()
+	if err := rabbitMQService.Connect(); err != nil {
+		panic("Could not connect to RabbitMQ: " + err.Error())
+	}
 
 	// Inicializa controladores
 	videoController := controllers.NewVideoController(videoService, databaseVideoService, jobService, rabbitMQService)
