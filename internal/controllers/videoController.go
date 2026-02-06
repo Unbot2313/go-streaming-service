@@ -186,16 +186,7 @@ func (vc *VideoControllerImpl) CreateVideo(c *gin.Context) {
 		return
 	}
 
-	// 7. Conectar a RabbitMQ
-	err = vc.rabbitMQService.Connect()
-	if err != nil {
-		vc.jobService.UpdateJobStatus(createdJob.Id, "failed", "Error conectando a RabbitMQ")
-		helpers.HandleError(c, http.StatusInternalServerError, "Error conectando a cola de procesamiento", err)
-		return
-	}
-	defer vc.rabbitMQService.Close()
-
-	// 8. Crear y serializar tarea para la cola
+	// 7. Crear y serializar tarea para la cola
 	videoTask := models.VideoTask{
 		JobID:       createdJob.Id,
 		UserID:      authenticatedUser.Id,
