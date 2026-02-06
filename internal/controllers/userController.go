@@ -126,6 +126,6 @@ func (controller *UserControllerImp) DeleteUserByID(c *gin.Context) {
 
 
 
-func NewUserController(service services.UserService) *UserControllerImp {
+func NewUserController(service services.UserService) UserController {
 	return &UserControllerImp{service: service}
 }
