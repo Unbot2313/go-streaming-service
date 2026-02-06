@@ -149,7 +149,7 @@ func (controller *AuthControllerImp) RefreshToken(c *gin.Context) {
 func (controller *AuthControllerImp) Logout(c *gin.Context) {
 	user, exists := c.Get("user")
 	if !exists {
-		helpers.Error(c, http.StatusInternalServerError, "User not found in context")
+		helpers.HandleError(c, http.StatusInternalServerError, "User not found in context", nil)
 		return
 	}
 

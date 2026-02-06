@@ -128,26 +128,26 @@ func (vc *VideoControllerImpl) CreateVideo(c *gin.Context) {
 	// 1. Recuperar el usuario del contexto (del middleware JWT)
 	user, exists := c.Get("user")
 	if !exists {
-		helpers.Error(c, http.StatusInternalServerError, "User not found in context")
+		helpers.HandleError(c, http.StatusInternalServerError, "User not found in context", nil)
 		return
 	}
 
 	authenticatedUser, ok := user.(*models.User)
 	if !ok {
-		helpers.Error(c, http.StatusInternalServerError, "Failed to parse user data")
+		helpers.HandleError(c, http.StatusInternalServerError, "Failed to parse user data", nil)
 		return
 	}
 
 	// 2. Validar campos requeridos (title obligatorio)
 	var req CreateVideoRequest
 	if err := c.ShouldBind(&req); err != nil {
-		helpers.Error(c, http.StatusBadRequest, "title es requerido (max 100 caracteres)")
+		helpers.HandleError(c, http.StatusBadRequest, "title es requerido (max 100 caracteres)", err)
 		return
 	}
 
 	// 3. Validar extensión del archivo
 	if !vc.videoService.IsValidVideoExtension(c) {
-		helpers.Error(c, http.StatusBadRequest, "El archivo no es un tipo de video valido")
+		helpers.HandleError(c, http.StatusBadRequest, "El archivo no es un tipo de video valido", nil)
 		return
 	}
 
@@ -155,7 +155,7 @@ func (vc *VideoControllerImpl) CreateVideo(c *gin.Context) {
 	fileSize := c.Request.ContentLength
 	const maxFileSize = 100 * 1024 * 1024
 	if fileSize > maxFileSize {
-		helpers.Error(c, http.StatusBadRequest, "El archivo excede el limite de tamaño permitido")
+		helpers.HandleError(c, http.StatusBadRequest, "El archivo excede el limite de tamaño permitido", nil)
 		return
 	}
 
@@ -190,7 +190,7 @@ func (vc *VideoControllerImpl) CreateVideo(c *gin.Context) {
 	err = vc.rabbitMQService.Connect()
 	if err != nil {
 		vc.jobService.UpdateJobStatus(createdJob.Id, "failed", "Error conectando a RabbitMQ")
-		helpers.Error(c, http.StatusInternalServerError, "Error conectando a cola de procesamiento")
+		helpers.HandleError(c, http.StatusInternalServerError, "Error conectando a cola de procesamiento", err)
 		return
 	}
 	defer vc.rabbitMQService.Close()
@@ -209,7 +209,7 @@ func (vc *VideoControllerImpl) CreateVideo(c *gin.Context) {
 	taskJSON, err := json.Marshal(videoTask)
 	if err != nil {
 		vc.jobService.UpdateJobStatus(createdJob.Id, "failed", "Error serializando tarea")
-		helpers.Error(c, http.StatusInternalServerError, "Error preparando tarea")
+		helpers.HandleError(c, http.StatusInternalServerError, "Error preparando tarea", err)
 		return
 	}
 
@@ -217,7 +217,7 @@ func (vc *VideoControllerImpl) CreateVideo(c *gin.Context) {
 	err = vc.rabbitMQService.Publish(cfg.RabbitMQVideoQueue, taskJSON)
 	if err != nil {
 		vc.jobService.UpdateJobStatus(createdJob.Id, "failed", "Error publicando a cola")
-		helpers.Error(c, http.StatusInternalServerError, "Error encolando tarea")
+		helpers.HandleError(c, http.StatusInternalServerError, "Error encolando tarea", err)
 		return
 	}
 
@@ -256,7 +256,7 @@ func (vc *VideoControllerImpl) UpdateVideo(c *gin.Context) {
 
 	user, exists := c.Get("user")
 	if !exists {
-		helpers.Error(c, http.StatusInternalServerError, "User not found in context")
+		helpers.HandleError(c, http.StatusInternalServerError, "User not found in context", nil)
 		return
 	}
 	authenticatedUser := user.(*models.User)
@@ -268,7 +268,7 @@ func (vc *VideoControllerImpl) UpdateVideo(c *gin.Context) {
 	}
 
 	if video.UserID != authenticatedUser.Id {
-		helpers.Error(c, http.StatusForbidden, "You are not the owner of this video")
+		helpers.HandleError(c, http.StatusForbidden, "You are not the owner of this video", nil)
 		return
 	}
 
@@ -305,7 +305,7 @@ func (vc *VideoControllerImpl) DeleteVideo(c *gin.Context) {
 
 	user, exists := c.Get("user")
 	if !exists {
-		helpers.Error(c, http.StatusInternalServerError, "User not found in context")
+		helpers.HandleError(c, http.StatusInternalServerError, "User not found in context", nil)
 		return
 	}
 	authenticatedUser := user.(*models.User)
@@ -317,7 +317,7 @@ func (vc *VideoControllerImpl) DeleteVideo(c *gin.Context) {
 	}
 
 	if video.UserID != authenticatedUser.Id {
-		helpers.Error(c, http.StatusForbidden, "You are not the owner of this video")
+		helpers.HandleError(c, http.StatusForbidden, "You are not the owner of this video", nil)
 		return
 	}
 

@@ -14,13 +14,13 @@ func AuthMiddleware(authService services.AuthService) gin.HandlerFunc {
 		rawToken := c.GetHeader("Authorization")
 
 		if rawToken == "" {
-			helpers.Error(c, http.StatusUnauthorized, "Authorization header not provided")
+			helpers.HandleError(c, http.StatusUnauthorized, "Authorization header not provided", nil)
 			c.Abort()
 			return
 		}
 
 		if !strings.HasPrefix(rawToken, "Bearer ") {
-			helpers.Error(c, http.StatusUnauthorized, "Invalid authorization format. Use: Bearer <token>")
+			helpers.HandleError(c, http.StatusUnauthorized, "Invalid authorization format. Use: Bearer <token>", nil)
 			c.Abort()
 			return
 		}
