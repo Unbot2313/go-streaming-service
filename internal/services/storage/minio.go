@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -84,7 +84,7 @@ func (m *MinIOStorage) UploadFolder(ctx context.Context, localFolder string) (Up
 			thumbnailURL = fileURL
 		}
 
-		log.Printf("[MinIO] Subido: %s", objectName)
+		slog.Info("MinIO uploaded", slog.String("object", objectName))
 	}
 
 	if m3u8FileURL == "" {
@@ -100,7 +100,7 @@ func (m *MinIOStorage) UploadFolder(ctx context.Context, localFolder string) (Up
 
 // DeleteFolder elimina todos los objetos dentro de una carpeta en MinIO
 func (m *MinIOStorage) DeleteFolder(ctx context.Context, folderName string) error {
-	log.Printf("[MinIO] Eliminando objetos en: %s", folderName)
+	slog.Info("MinIO deleting objects", slog.String("folder", folderName))
 
 	objectsCh := m.client.ListObjects(ctx, m.bucketName, minio.ListObjectsOptions{
 		Prefix:    folderName,
@@ -117,7 +117,7 @@ func (m *MinIOStorage) DeleteFolder(ctx context.Context, folderName string) erro
 			return fmt.Errorf("error eliminando %s: %w", object.Key, err)
 		}
 
-		log.Printf("[MinIO] Eliminado: %s", object.Key)
+		slog.Info("MinIO deleted", slog.String("object", object.Key))
 	}
 
 	return nil

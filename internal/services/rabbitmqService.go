@@ -3,7 +3,7 @@ package services
 import (
 	"context"
 	"fmt"
-	"log"
+	"log/slog"
 	"time"
 
 	"github.com/unbot2313/go-streaming-service/config"
@@ -43,7 +43,7 @@ func NewRabbitMQService() RabbitMQService {
 // logError registra errores sin detener la ejecución
 func logError(err error, msg string) bool {
 	if err != nil {
-		log.Printf("ERROR - %s: %s", msg, err)
+		slog.Error(msg, slog.Any("error", err))
 		return true
 	}
 	return false
@@ -86,7 +86,7 @@ func (r *RabbitMQServiceImp) Connect() error {
 	}
 	r.channel = ch
 
-	log.Println("Conectado a RabbitMQ exitosamente")
+	slog.Info("connected to RabbitMQ")
 	return nil
 }
 
@@ -98,7 +98,7 @@ func (r *RabbitMQServiceImp) Close() {
 	if r.connection != nil {
 		r.connection.Close()
 	}
-	log.Println("Conexión a RabbitMQ cerrada")
+	slog.Info("RabbitMQ connection closed")
 }
 
 // Publish envía un mensaje a una cola con persistencia
@@ -137,7 +137,10 @@ func (r *RabbitMQServiceImp) Publish(queueName string, message []byte) error {
 		return err
 	}
 
-	log.Printf("Mensaje enviado a cola '%s': %s", queueName, string(message))
+	slog.Info("message published",
+		slog.String("queue", queueName),
+		slog.String("body", string(message)),
+	)
 	return nil
 }
 
@@ -183,13 +186,17 @@ func (r *RabbitMQServiceImp) Consume(queueName string, handler MessageHandler) e
 		return err
 	}
 
-	log.Printf("Worker esperando mensajes en cola '%s'...", queueName)
+	slog.Info("worker waiting for messages", slog.String("queue", queueName))
 
 	// Escuchar mensajes en un goroutine
 	go func() {
 		for msg := range messages {
 			retryCount := getRetryCount(msg.Headers)
-			log.Printf("Mensaje recibido de '%s' (intento %d/%d)", queueName, retryCount+1, MaxRetries)
+			slog.Info("message received",
+				slog.String("queue", queueName),
+				slog.Int("attempt", retryCount+1),
+				slog.Int("max_retries", MaxRetries),
+			)
 
 			// Procesar el mensaje con el handler
 			err := handler(msg.Body)
@@ -197,12 +204,18 @@ func (r *RabbitMQServiceImp) Consume(queueName string, handler MessageHandler) e
 			if err != nil {
 				if retryCount >= MaxRetries-1 {
 					// Máximo de reintentos alcanzado, descartar mensaje
-					log.Printf("Máximo de reintentos alcanzado (%d). Descartando mensaje.", MaxRetries)
+					slog.Warn("max retries reached, discarding message",
+						slog.Int("max_retries", MaxRetries),
+					)
 					msg.Ack(false)
 				} else {
 					// Reintentar: Ack el mensaje actual y republicar con contador incrementado
-					log.Printf("Error procesando mensaje: %s - Reintentando en %v... (%d/%d)",
-						err, RetryDelay, retryCount+2, MaxRetries)
+					slog.Warn("error processing message, retrying",
+						slog.Any("error", err),
+						slog.String("retry_delay", RetryDelay.String()),
+						slog.Int("attempt", retryCount+2),
+						slog.Int("max_retries", MaxRetries),
+					)
 					msg.Ack(false)
 
 					// Esperar antes de reintentar
@@ -212,7 +225,7 @@ func (r *RabbitMQServiceImp) Consume(queueName string, handler MessageHandler) e
 					r.republishWithRetry(queueName, msg.Body, retryCount+1)
 				}
 			} else {
-				log.Printf("Mensaje procesado exitosamente")
+				slog.Info("message processed successfully")
 				msg.Ack(false)
 			}
 		}

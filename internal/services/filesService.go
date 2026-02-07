@@ -2,7 +2,7 @@ package services
 
 import (
 	"fmt"
-	"log"
+	"log/slog"
 	"os"
 )
 
@@ -51,7 +51,7 @@ func (fs *filesService) CreateFolder(path string) error {
 func (fs *filesService) RemoveFolder(folder string) error {
 	err := os.RemoveAll(folder)
 	if err != nil {
-		log.Println("error al borrar la carpeta:", err)
+		slog.Error("error removing folder", slog.Any("error", err))
 		return err
 	}
 	return nil

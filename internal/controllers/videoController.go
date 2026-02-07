@@ -2,7 +2,7 @@ package controllers
 
 import (
 	"encoding/json"
-	"log"
+	"log/slog"
 	"net/http"
 	"strconv"
 
@@ -35,10 +35,9 @@ type CreateVideoRequest struct {
 // @Produce 		json
 // @Param 			page query int false "Page number (default: 1)" default(1)
 // @Param 			page_size query int false "Items per page (default: 10, max: 50)" default(10)
-// @Success 		200 {object} services.PaginatedVideos{}
-// @Failure 		400 {object} map[string]string
-// @Failure 		500 {object} map[string]string
-// @Router 			/streaming/ [get]
+// @Success 		200 {object} helpers.APIResponse{data=services.PaginatedVideos}
+// @Failure 		500 {object} helpers.APIResponse{error=helpers.APIError}
+// @Router 			/streaming/latest [get]
 func (vc *VideoControllerImpl) GetLatestVideos(c *gin.Context) {
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "10"))
@@ -69,9 +68,8 @@ func (vc *VideoControllerImpl) GetLatestVideos(c *gin.Context) {
 // @Tags 			streaming
 // @Produce 		json
 // @Param 			videoid path string true "Video ID"
-// @Success 		200 {object} models.VideoSwagger{}
-// @Failure 		400 {object} map[string]string
-// @Failure 		500 {object} map[string]string
+// @Success 		200 {object} helpers.APIResponse{data=models.VideoSwagger}
+// @Failure 		404 {object} helpers.APIResponse{error=helpers.APIError}
 // @Router 			/streaming/id/{videoid} [get]
 func (vc *VideoControllerImpl) GetVideoByID(c *gin.Context) {
 	videoId := c.Param("videoid")
@@ -92,9 +90,8 @@ func (vc *VideoControllerImpl) GetVideoByID(c *gin.Context) {
 // @Tags 			streaming
 // @Produce 		json
 // @Param 			videoid path string true "Video ID"
-// @Success 		200 {object} models.VideoSwagger{}	
-// @Failure 		400 {object} map[string]string
-// @Failure 		500 {object} map[string]string
+// @Success 		200 {object} helpers.APIResponse{data=models.VideoSwagger}
+// @Failure 		500 {object} helpers.APIResponse{error=helpers.APIError}
 // @Router 			/streaming/views/{videoid} [patch]
 func (vc *VideoControllerImpl) IncrementViews(c *gin.Context) {
 	videoId := c.Param("videoid")
@@ -115,12 +112,14 @@ func (vc *VideoControllerImpl) IncrementViews(c *gin.Context) {
 // @Tags 			streaming
 // @Accept 			multipart/form-data
 // @Produce 		json
+// @Security		BearerAuth
 // @Param 			title formData string true "Video Title"
 // @Param 			description formData string false "Video Description"
 // @Param 			video formData file true "Video File"
-// @Success 		202 {object} models.JobSwagger{}
-// @Failure 		400 {object} map[string]string
-// @Failure 		500 {object} map[string]string
+// @Success 		202 {object} helpers.APIResponse{data=models.JobSwagger}
+// @Failure 		400 {object} helpers.APIResponse{error=helpers.APIError}
+// @Failure 		401 {object} helpers.APIResponse{error=helpers.APIError}
+// @Failure 		500 {object} helpers.APIResponse{error=helpers.APIError}
 // @Router 			/streaming/upload [post]
 func (vc *VideoControllerImpl) CreateVideo(c *gin.Context) {
 	cfg := config.GetConfig()
@@ -212,7 +211,10 @@ func (vc *VideoControllerImpl) CreateVideo(c *gin.Context) {
 		return
 	}
 
-	log.Printf("[x] Video encolado: job_id=%s, file=%s", createdJob.Id, videoData.UniqueName)
+	slog.Info("video enqueued",
+		slog.String("job_id", createdJob.Id),
+		slog.String("file", videoData.UniqueName),
+	)
 
 	// 10. Responder inmediatamente con el job_id
 	// NOTA: La limpieza de archivos locales la hace el WORKER después de procesar
@@ -235,12 +237,13 @@ type UpdateVideoRequest struct {
 // @Tags		streaming
 // @Accept		json
 // @Produce		json
+// @Security	BearerAuth
 // @Param		videoid path string true "Video ID"
 // @Param		body body UpdateVideoRequest true "Updated video data"
-// @Success		200 {object} models.VideoSwagger{}
-// @Failure		400 {object} map[string]string
-// @Failure		403 {object} map[string]string
-// @Failure		404 {object} map[string]string
+// @Success		200 {object} helpers.APIResponse{data=models.VideoSwagger}
+// @Failure		400 {object} helpers.APIResponse{error=helpers.APIError}
+// @Failure		403 {object} helpers.APIResponse{error=helpers.APIError}
+// @Failure		404 {object} helpers.APIResponse{error=helpers.APIError}
 // @Router		/streaming/{videoid} [put]
 func (vc *VideoControllerImpl) UpdateVideo(c *gin.Context) {
 	videoId := c.Param("videoid")
@@ -286,10 +289,11 @@ func (vc *VideoControllerImpl) UpdateVideo(c *gin.Context) {
 // @Description	Delete a video by ID. Only the owner can delete.
 // @Tags		streaming
 // @Produce		json
+// @Security	BearerAuth
 // @Param		videoid path string true "Video ID"
-// @Success		200 {object} map[string]string
-// @Failure		403 {object} map[string]string
-// @Failure		404 {object} map[string]string
+// @Success		200 {object} helpers.APIResponse{data=object{message=string}}
+// @Failure		403 {object} helpers.APIResponse{error=helpers.APIError}
+// @Failure		404 {object} helpers.APIResponse{error=helpers.APIError}
 // @Router		/streaming/{videoid} [delete]
 func (vc *VideoControllerImpl) DeleteVideo(c *gin.Context) {
 	videoId := c.Param("videoid")

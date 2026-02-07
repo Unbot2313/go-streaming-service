@@ -2,7 +2,7 @@ package config
 
 import (
 	"fmt"
-	"log"
+	"log/slog"
 	"os"
 	"strconv"
 	"sync"
@@ -107,10 +107,10 @@ func validateConfig(cfg *Config) {
 	}
 
 	if cfg.PostgresPassword == "postgres" {
-		log.Println("WARNING: using default PostgreSQL password, set POSTGRES_PASSWORD in .env")
+		slog.Warn("using default PostgreSQL password, set POSTGRES_PASSWORD in .env")
 	}
 	if cfg.RabbitMQPassword == "guest" {
-		log.Println("WARNING: using default RabbitMQ password, set RABBITMQ_PASSWORD in .env")
+		slog.Warn("using default RabbitMQ password, set RABBITMQ_PASSWORD in .env")
 	}
 }
 

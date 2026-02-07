@@ -12,6 +12,7 @@ import (
 	"github.com/unbot2313/go-streaming-service/config"
 	_ "github.com/unbot2313/go-streaming-service/docs"
 	"github.com/unbot2313/go-streaming-service/internal/app"
+	"github.com/unbot2313/go-streaming-service/internal/logger"
 	"github.com/unbot2313/go-streaming-service/internal/middlewares"
 	"github.com/unbot2313/go-streaming-service/internal/routes"
 	"github.com/unbot2313/go-streaming-service/internal/services"
@@ -24,7 +25,13 @@ import (
 // @host	localhost:3003
 // @BasePath /api/v1
 
+// @SecurityDefinitions.apikey BearerAuth
+// @in header
+// @name Authorization
+
 func main() {
+	// Configurar logger estructurado
+	logger.Setup()
 
 	cfg := config.GetConfig()
 
@@ -37,6 +44,9 @@ func main() {
 		AllowHeaders:     []string{"Authorization", "Content-Type"},
 		AllowCredentials: true,
 	}))
+
+	// Request logging middleware
+	r.Use(middlewares.RequestLogger())
 
 	// Rate limiter general: 10 req/s, burst 20
 	generalLimiter := middlewares.NewRateLimiter(10, 20)

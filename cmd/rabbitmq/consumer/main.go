@@ -3,11 +3,13 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"log"
+	"log/slog"
+	"os"
 	"time"
 
 	"github.com/joho/godotenv"
 	"github.com/unbot2313/go-streaming-service/config"
+	"github.com/unbot2313/go-streaming-service/internal/logger"
 	"github.com/unbot2313/go-streaming-service/internal/models"
 	"github.com/unbot2313/go-streaming-service/internal/services"
 	"github.com/unbot2313/go-streaming-service/internal/services/storage"
@@ -30,6 +32,9 @@ func main() {
 	// Cargar .env
 	godotenv.Load()
 
+	// Configurar logger
+	logger.Setup()
+
 	// Obtener configuración
 	cfg := config.GetConfig()
 
@@ -42,17 +47,19 @@ func main() {
 	// Conectar
 	err := rabbitService.Connect()
 	if err != nil {
-		log.Fatal(err)
+		slog.Error("failed to connect to RabbitMQ", slog.Any("error", err))
+		os.Exit(1)
 	}
 	defer rabbitService.Close()
 
 	// Consumir mensajes de la cola de video
 	err = rabbitService.Consume(cfg.RabbitMQVideoQueue, processVideoTask)
 	if err != nil {
-		log.Fatal(err)
+		slog.Error("failed to start consumer", slog.Any("error", err))
+		os.Exit(1)
 	}
 
-	log.Printf("[*] Worker escuchando en '%s'. Presiona CTRL+C para salir", cfg.RabbitMQVideoQueue)
+	slog.Info("worker listening", slog.String("queue", cfg.RabbitMQVideoQueue))
 	select {} // Bloquea indefinidamente
 }
 
@@ -65,7 +72,7 @@ func initServices() {
 	videoService = services.NewVideoService(storageService, filesService, ffmpegService)
 	databaseVideoService = services.NewDatabaseVideoService()
 
-	log.Println("[*] Servicios inicializados")
+	slog.Info("services initialized")
 }
 
 // processVideoTask procesa una tarea de video recibida de RabbitMQ
@@ -77,49 +84,52 @@ func processVideoTask(message []byte) error {
 	// 1. Parsear el mensaje JSON
 	var task models.VideoTask
 	if err := json.Unmarshal(message, &task); err != nil {
-		log.Printf("[!] Error parseando mensaje: %s", err)
+		slog.Error("error parsing message", slog.Any("error", err))
 		return err
 	}
 
-	log.Printf("[>] Procesando job: %s, archivo: %s", task.JobID, task.UniqueName)
+	slog.Info("processing job",
+		slog.String("job_id", task.JobID),
+		slog.String("file", task.UniqueName),
+	)
 
 	// 2. Actualizar job a "processing"
 	if err := jobService.UpdateJobStatus(task.JobID, "processing", ""); err != nil {
-		log.Printf("[!] Error actualizando job a processing: %s", err)
+		slog.Error("error updating job to processing", slog.String("job_id", task.JobID), slog.Any("error", err))
 		return err
 	}
 
 	// 3. Convertir video a HLS (ffmpeg)
-	log.Printf("[.] Convirtiendo a HLS: %s", task.UniqueName)
+	slog.Info("converting to HLS", slog.String("file", task.UniqueName))
 	filesPath, err := videoService.FormatVideo(ctx, task.UniqueName)
 	if err != nil {
-		log.Printf("[!] Error en FormatVideo: %s", err)
+		slog.Error("error in FormatVideo", slog.String("job_id", task.JobID), slog.Any("error", err))
 		jobService.UpdateJobStatus(task.JobID, "failed", "Error convirtiendo video: "+err.Error())
 		return err
 	}
 
 	// 4. Generar thumbnail
-	log.Printf("[.] Generando thumbnail...")
+	slog.Info("generating thumbnail", slog.String("job_id", task.JobID))
 	_, err = videoService.GenerateThumbnail(ctx, task.LocalPath, filesPath)
 	if err != nil {
-		log.Printf("[!] Error en GenerateThumbnail: %s", err)
+		slog.Error("error in GenerateThumbnail", slog.String("job_id", task.JobID), slog.Any("error", err))
 		jobService.UpdateJobStatus(task.JobID, "failed", "Error generando thumbnail: "+err.Error())
 		filesService.RemoveFolder(filesPath)
 		return err
 	}
 
 	// 5. Subir a storage (S3 o MinIO según configuración)
-	log.Printf("[.] Subiendo a storage...")
+	slog.Info("uploading to storage", slog.String("job_id", task.JobID))
 	uploadResult, err := videoService.UploadFolder(ctx, filesPath)
 	if err != nil {
-		log.Printf("[!] Error subiendo a storage: %s", err)
+		slog.Error("error uploading to storage", slog.String("job_id", task.JobID), slog.Any("error", err))
 		jobService.UpdateJobStatus(task.JobID, "failed", "Error subiendo a storage: "+err.Error())
 		filesService.RemoveFolder(filesPath)
 		return err
 	}
 
 	// 6. Guardar video en base de datos
-	log.Printf("[.] Guardando en base de datos...")
+	slog.Info("saving to database", slog.String("job_id", task.JobID))
 	videoData := &models.Video{
 		Id:           task.JobID, // Usamos el mismo ID del job para el video
 		Title:        task.Title,
@@ -131,7 +141,7 @@ func processVideoTask(message []byte) error {
 
 	_, err = databaseVideoService.CreateVideo(videoData, task.UserID)
 	if err != nil {
-		log.Printf("[!] Error guardando en DB: %s", err)
+		slog.Error("error saving to database", slog.String("job_id", task.JobID), slog.Any("error", err))
 		jobService.UpdateJobStatus(task.JobID, "failed", "Error guardando en DB: "+err.Error())
 		// Borrar de storage si falla
 		videoService.DeleteFolder(ctx, uploadResult.BaseFolder+"/")
@@ -141,15 +151,15 @@ func processVideoTask(message []byte) error {
 
 	// 7. Actualizar job a "completed"
 	if err := jobService.UpdateJobCompleted(task.JobID, task.JobID); err != nil {
-		log.Printf("[!] Error actualizando job a completed: %s", err)
+		slog.Error("error updating job to completed", slog.String("job_id", task.JobID), slog.Any("error", err))
 		return err
 	}
 
 	// 8. Cleanup - Borrar archivos locales
-	log.Printf("[.] Limpiando archivos locales...")
+	slog.Info("cleaning up local files", slog.String("job_id", task.JobID))
 	filesService.RemoveFile(task.LocalPath) // Video original
 	filesService.RemoveFolder(filesPath)    // Carpeta con .ts y .m3u8
 
-	log.Printf("[OK] Job completado: %s", task.JobID)
+	slog.Info("job completed", slog.String("job_id", task.JobID))
 	return nil
 }

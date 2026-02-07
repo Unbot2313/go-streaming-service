@@ -47,5 +47,5 @@ type User struct {
 	Videos 		 []VideoModel 	`json:"videos" gorm:"foreignKey:UserID"`
 	CreatedAt    time.Time
 	UpdatedAt    time.Time
-	DeletedAt    gorm.DeletedAt `gorm:"index"`
+	DeletedAt    gorm.DeletedAt `gorm:"index" swaggertype:"string"`
 }
