@@ -1,7 +1,8 @@
 package config
 
 import (
-	"log"
+	"log/slog"
+	"os"
 	"sync"
 
 	"github.com/minio/minio-go/v7"
@@ -24,11 +25,12 @@ func GetMinIOClient() *minio.Client {
 		})
 
 		if err != nil {
-			log.Fatalf("Error creando cliente MinIO: %v", err)
+			slog.Error("error creating MinIO client", slog.Any("error", err))
+			os.Exit(1)
 		}
 
 		minioClient = client
-		log.Printf("Cliente MinIO conectado a %s", cfg.MinIOEndpoint)
+		slog.Info("MinIO client connected", slog.String("endpoint", cfg.MinIOEndpoint))
 	})
 
 	return minioClient

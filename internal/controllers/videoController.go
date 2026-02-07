@@ -2,7 +2,7 @@ package controllers
 
 import (
 	"encoding/json"
-	"log"
+	"log/slog"
 	"net/http"
 	"strconv"
 
@@ -211,7 +211,10 @@ func (vc *VideoControllerImpl) CreateVideo(c *gin.Context) {
 		return
 	}
 
-	log.Printf("[x] Video encolado: job_id=%s, file=%s", createdJob.Id, videoData.UniqueName)
+	slog.Info("video enqueued",
+		slog.String("job_id", createdJob.Id),
+		slog.String("file", videoData.UniqueName),
+	)
 
 	// 10. Responder inmediatamente con el job_id
 	// NOTA: La limpieza de archivos locales la hace el WORKER después de procesar

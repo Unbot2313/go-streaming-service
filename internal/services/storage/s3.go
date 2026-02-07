@@ -3,7 +3,7 @@ package storage
 import (
 	"context"
 	"errors"
-	"log"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -93,7 +93,7 @@ func (s *S3Storage) UploadFolder(ctx context.Context, localFolder string) (Uploa
 
 // DeleteFolder elimina todos los objetos dentro de una carpeta en S3
 func (s *S3Storage) DeleteFolder(ctx context.Context, folderName string) error {
-	log.Println("Eliminando objetos en la carpeta:", folderName)
+	slog.Info("S3 deleting objects", slog.String("folder", folderName))
 
 	input := &s3.ListObjectsV2Input{
 		Bucket: aws.String(s.bucketName),
@@ -106,7 +106,7 @@ func (s *S3Storage) DeleteFolder(ctx context.Context, folderName string) error {
 	for objectPaginator.HasMorePages() {
 		output, err := objectPaginator.NextPage(ctx)
 		if err != nil {
-			log.Printf("Error al listar objetos: %v\n", err)
+			slog.Error("error listing S3 objects", slog.Any("error", err))
 			return err
 		}
 
@@ -118,7 +118,7 @@ func (s *S3Storage) DeleteFolder(ctx context.Context, folderName string) error {
 	}
 
 	if len(objectsToDelete) == 0 {
-		log.Println("No se encontraron objetos para eliminar.")
+		slog.Info("no objects found to delete")
 		return nil
 	}
 
@@ -131,11 +131,11 @@ func (s *S3Storage) DeleteFolder(ctx context.Context, folderName string) error {
 
 	_, err := s.client.DeleteObjects(ctx, deleteInput)
 	if err != nil {
-		log.Printf("Error al eliminar objetos: %v\n", err)
+		slog.Error("error deleting S3 objects", slog.Any("error", err))
 		return err
 	}
 
-	log.Printf("Se han eliminado los objetos en la carpeta %v.\n", folderName)
+	slog.Info("S3 objects deleted", slog.String("folder", folderName))
 	return nil
 }
 
@@ -154,7 +154,7 @@ func (s *S3Storage) ListObjects(ctx context.Context, folder string) ([]ObjectInf
 		if err != nil {
 			var noBucket *types.NoSuchBucket
 			if errors.As(err, &noBucket) {
-				log.Printf("Bucket %s does not exist.\n", s.bucketName)
+				slog.Error("S3 bucket does not exist", slog.String("bucket", s.bucketName))
 			}
 			return nil, err
 		}
