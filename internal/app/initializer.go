@@ -7,7 +7,7 @@ import (
 )
 
 // InitializeComponents crea las instancias de los servicios y controladores
-func InitializeComponents() (controllers.UserController, controllers.AuthController, controllers.VideoController, controllers.JobController, services.AuthService) {
+func InitializeComponents() (controllers.UserController, controllers.AuthController, controllers.VideoController, controllers.JobController, controllers.TagController, services.AuthService) {
 	// Inicializa los servicios base
 	userService := services.NewUserService()
 	authService := services.NewAuthService()
@@ -30,9 +30,13 @@ func InitializeComponents() (controllers.UserController, controllers.AuthControl
 		panic("Could not connect to RabbitMQ: " + err.Error())
 	}
 
+	// Inicializa servicios de tags
+	tagService := services.NewTagService()
+
 	// Inicializa controladores
 	videoController := controllers.NewVideoController(videoService, databaseVideoService, jobService, rabbitMQService)
 	jobController := controllers.NewJobController(jobService)
+	tagController := controllers.NewTagController(tagService, databaseVideoService)
 
-	return userController, authController, videoController, jobController, authService
+	return userController, authController, videoController, jobController, tagController, authService
 }

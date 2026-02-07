@@ -53,6 +53,11 @@ func migrations(db *gorm.DB) error {
 		return err
 	}
 
+	err = db.AutoMigrate(&models.Tag{})
+	if err != nil {
+		return err
+	}
+
 	err = db.AutoMigrate(&models.VideoModel{})
 	if err != nil {
 		return err
