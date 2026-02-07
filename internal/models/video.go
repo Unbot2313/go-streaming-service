@@ -30,7 +30,7 @@ type VideoSwagger struct {
 	Duration   		string	 	`json:"duration"`
 	ThumbnailURL 	string   	`json:"thumbnail"`
 	Views 			uint		`json:"views" gorm:"default:0"`
-
+	Tags			[]Tag		`json:"tags" gorm:"many2many:video_tags;"`
 }
 
 // el que se usa en la db
@@ -43,6 +43,7 @@ type VideoModel struct {
 	Duration   		string	 		`json:"duration"`
 	ThumbnailURL 	string   		`json:"thumbnail"`
 	Views 			uint			`json:"views" gorm:"default:0"`
+	Tags			[]Tag			`json:"tags" gorm:"many2many:video_tags;"`
 	CreatedAt 		time.Time
 	UpdatedAt		time.Time
 	DeletedAt 		gorm.DeletedAt 	`gorm:"index" swaggertype:"string"`
