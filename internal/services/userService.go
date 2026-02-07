@@ -17,8 +17,8 @@ type UserService interface {
 	GetUserByUserName(userName string) (*models.User, error)
 	CreateUser(user *models.User) (*models.User, error)
 	DeleteUserByID(Id string) error
-	// Pendiente
-	UpdateUserByID(Id string, user *models.User) (*models.User, error)
+	UpdateEmail(userId, newEmail string) error
+	UpdatePassword(userId, currentPassword, newPassword string) error
 }
 
 func (service *UserServiceImp) GetUserByID(Id string) (*models.User, error) {
@@ -121,11 +121,56 @@ func (service *UserServiceImp) DeleteUserByID(Id string) error {
 	return nil
 }
 
-// Pendiente
-func (service *UserServiceImp) UpdateUserByID(Id string, user *models.User) (*models.User, error) {
-	return nil, nil
+func (service *UserServiceImp) UpdateEmail(userId, newEmail string) error {
+	db, err := config.GetDB()
+	if err != nil {
+		return err
+	}
+
+	result := db.Model(&models.User{}).Where("id = ?", userId).Update("email", newEmail)
+
+	if errors.Is(result.Error, gorm.ErrDuplicatedKey) {
+		return fmt.Errorf("email already in use")
+	}
+
+	if result.Error != nil {
+		return result.Error
+	}
+
+	if result.RowsAffected == 0 {
+		return fmt.Errorf("user with ID %s not found", userId)
+	}
+
+	return nil
 }
 
+func (service *UserServiceImp) UpdatePassword(userId, currentPassword, newPassword string) error {
+	user, err := service.GetUserByID(userId)
+	if err != nil {
+		return err
+	}
+
+	if !CheckPasswordHash(currentPassword, user.Password) {
+		return fmt.Errorf("current password is incorrect")
+	}
+
+	hashedPassword, err := HashPassword(newPassword)
+	if err != nil {
+		return err
+	}
+
+	db, err := config.GetDB()
+	if err != nil {
+		return err
+	}
+
+	result := db.Model(&models.User{}).Where("id = ?", userId).Update("password", hashedPassword)
+	if result.Error != nil {
+		return result.Error
+	}
+
+	return nil
+}
 
 func NewUserService() UserService {
 	return &UserServiceImp{}

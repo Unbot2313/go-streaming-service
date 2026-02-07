@@ -26,6 +26,8 @@ func SetupRoutes(router *gin.RouterGroup, userController controllers.UserControl
 		protectedUserRoutes := userRoutes.Group("")
 		protectedUserRoutes.Use(authMiddleware)
 		protectedUserRoutes.DELETE("/:id", userController.DeleteUserByID)
+		protectedUserRoutes.PATCH("/email", userController.UpdateEmail)
+		protectedUserRoutes.PATCH("/password", userController.UpdatePassword)
 	}
 
 	// Rutas de autenticación
@@ -50,6 +52,7 @@ func SetupRoutes(router *gin.RouterGroup, userController controllers.UserControl
 
 		// Rutas públicas
         VideoRoutes.GET("/latest", videoController.GetLatestVideos)
+		VideoRoutes.GET("/search", videoController.SearchVideos)
 		VideoRoutes.GET("/id/:videoid", videoController.GetVideoByID)
 		VideoRoutes.PATCH("/views/:videoid", videoController.IncrementViews)
 
