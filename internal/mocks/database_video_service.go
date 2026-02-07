@@ -13,6 +13,7 @@ type MockDatabaseVideoService struct {
 	CreateVideoFn      func(video *models.Video, userId string) (*models.VideoModel, error)
 	UpdateVideoFn      func(video *models.VideoModel) (*models.VideoModel, error)
 	DeleteVideoFn      func(videoId string) error
+	SearchVideosFn     func(query string, page, pageSize int) (*services.PaginatedVideos, error)
 }
 
 func (m *MockDatabaseVideoService) FindLatestVideos(page, pageSize int) (*services.PaginatedVideos, error) {
@@ -41,4 +42,8 @@ func (m *MockDatabaseVideoService) UpdateVideo(video *models.VideoModel) (*model
 
 func (m *MockDatabaseVideoService) DeleteVideo(videoId string) error {
 	return m.DeleteVideoFn(videoId)
+}
+
+func (m *MockDatabaseVideoService) SearchVideos(query string, page, pageSize int) (*services.PaginatedVideos, error) {
+	return m.SearchVideosFn(query, page, pageSize)
 }
