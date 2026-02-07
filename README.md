@@ -32,7 +32,8 @@ Para utilizar este proyecto, necesitas:
 ### Obligatorios
 
 - **Git**: Para clonar el repositorio.
-- **Go**: Para ejecutar y compilar el proyecto. (Versión recomendada: 1.23.1, utilizada en el `go.mod`).
+- **Go**: Para ejecutar y compilar el proyecto. (Versión recomendada: 1.24.0, utilizada en el `go.mod`).
+- **Atlas**: Para gestionar migraciones de base de datos. [Instalacion](https://atlasgo.io/getting-started#installation).
 
 ### Opcionales
 
@@ -59,6 +60,21 @@ Con docker(incluye la instancia de postgresql en local):
 
 ```bash
     docker compose up --build
+```
+
+## Database Migrations
+
+El proyecto usa [Atlas](https://atlasgo.io/) para migraciones declarativas. Atlas lee los modelos GORM y genera archivos SQL versionados automaticamente.
+
+```bash
+# Generar una migracion despues de modificar un modelo
+make migrate-diff name=describe_change
+
+# Aplicar migraciones pendientes
+make migrate-apply DATABASE_URL="postgres://user:pass@localhost:5432/dbname?sslmode=disable"
+
+# Ver estado de migraciones
+make migrate-status DATABASE_URL="postgres://user:pass@localhost:5432/dbname?sslmode=disable"
 ```
 
 ## Contributing
