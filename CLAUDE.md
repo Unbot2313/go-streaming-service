@@ -23,6 +23,15 @@ docker compose up --build
 
 # Regenerate Swagger documentation
 swag init
+
+# Generate a new migration after changing a model
+make migrate-diff name=describe_change
+
+# Apply pending migrations
+make migrate-apply DATABASE_URL="postgres://user:pass@localhost:5432/dbname?sslmode=disable"
+
+# Check migration status
+make migrate-status DATABASE_URL="postgres://user:pass@localhost:5432/dbname?sslmode=disable"
 ```
 
 ## Architecture
@@ -37,13 +46,16 @@ HTTP Request → Gin Router → Middlewares (CORS, Auth) → Controllers → Ser
 ### Key Directories
 - `config/` - Singleton configuration (env, database, S3/MinIO clients)
 - `internal/app/` - Dependency injection setup (`initializer.go`)
-- `internal/controllers/` - Request handlers (user, auth, video, job)
+- `internal/controllers/` - Request handlers (user, auth, video, job, tag)
 - `internal/services/` - Business logic layer
 - `internal/services/storage/` - Storage abstraction (S3, MinIO)
 - `internal/models/` - GORM database models
-- `internal/middlewares/` - JWT auth middleware
+- `internal/middlewares/` - JWT auth, rate limiting, request logger
 - `internal/routes/` - Route definitions
+- `internal/mocks/` - Mock implementations for testing
 - `cmd/rabbitmq/consumer/` - Video processing worker
+- `cmd/atlas/` - Atlas GORM loader for migration generation
+- `migrations/` - Versioned SQL migrations (managed by Atlas)
 - `docs/` - Auto-generated Swagger documentation
 - `static/` - Temporary video storage during processing
 
@@ -134,10 +146,37 @@ AWS_SECRET_ACCESS_KEY=secret...
 
 La abstracción está en `internal/services/storage/` con una interfaz común `StorageService`.
 
+## Database Migrations (Atlas)
+
+The project uses [Atlas](https://atlasgo.io/) with the GORM provider for declarative database migrations. Atlas reads the GORM structs directly and generates versioned SQL migration files.
+
+### How it works
+1. Models in `internal/models/` are the source of truth for the database schema
+2. `cmd/atlas/main.go` is the loader that passes the models to Atlas
+3. `atlas.hcl` configures Atlas to use the GORM loader and store migrations in `migrations/`
+4. Atlas compares the current models against the migration history and generates the diff
+
+### Workflow
+```bash
+# After modifying a model (adding a field, changing a type, etc.):
+make migrate-diff name=add_user_avatar
+
+# This generates a new .sql file in migrations/ with the exact DDL changes
+
+# Apply migrations to the database:
+make migrate-apply DATABASE_URL="postgres://user:pass@localhost:5432/dbname?sslmode=disable"
+```
+
+### Important
+- Never edit migration files after they have been applied
+- Always review the generated SQL before applying to production
+- The `atlas.sum` file ensures migration integrity — commit it to git
+
 ## Dependencies
 
 - **Web**: Gin with CORS
 - **Database**: GORM + PostgreSQL driver
+- **Migrations**: Atlas with GORM provider
 - **Auth**: JWT (HS256, 24h expiration), bcrypt
 - **Queue**: RabbitMQ (amqp091-go)
 - **Storage**: AWS SDK v2 for S3, MinIO SDK for local
