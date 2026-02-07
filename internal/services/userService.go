@@ -17,7 +17,6 @@ type UserService interface {
 	GetUserByUserName(userName string) (*models.User, error)
 	CreateUser(user *models.User) (*models.User, error)
 	DeleteUserByID(Id string) error
-	UpdateUserByID(Id string, user *models.User) (*models.User, error)
 	UpdateEmail(userId, newEmail string) error
 	UpdatePassword(userId, currentPassword, newPassword string) error
 }
@@ -120,10 +119,6 @@ func (service *UserServiceImp) DeleteUserByID(Id string) error {
     }
 
 	return nil
-}
-
-func (service *UserServiceImp) UpdateUserByID(Id string, user *models.User) (*models.User, error) {
-	return nil, nil
 }
 
 func (service *UserServiceImp) UpdateEmail(userId, newEmail string) error {

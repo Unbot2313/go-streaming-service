@@ -9,7 +9,6 @@ type MockUserService struct {
 	GetUserByUserNameFn func(userName string) (*models.User, error)
 	CreateUserFn        func(user *models.User) (*models.User, error)
 	DeleteUserByIDFn    func(id string) error
-	UpdateUserByIDFn    func(id string, user *models.User) (*models.User, error)
 	UpdateEmailFn       func(userId, newEmail string) error
 	UpdatePasswordFn    func(userId, currentPassword, newPassword string) error
 }
@@ -28,10 +27,6 @@ func (m *MockUserService) CreateUser(user *models.User) (*models.User, error) {
 
 func (m *MockUserService) DeleteUserByID(id string) error {
 	return m.DeleteUserByIDFn(id)
-}
-
-func (m *MockUserService) UpdateUserByID(id string, user *models.User) (*models.User, error) {
-	return m.UpdateUserByIDFn(id, user)
 }
 
 func (m *MockUserService) UpdateEmail(userId, newEmail string) error {
