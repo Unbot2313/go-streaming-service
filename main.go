@@ -16,6 +16,8 @@ import (
 	"github.com/unbot2313/go-streaming-service/internal/middlewares"
 	"github.com/unbot2313/go-streaming-service/internal/routes"
 	"github.com/unbot2313/go-streaming-service/internal/services"
+
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 // @title Go Streaming Service API
@@ -48,6 +50,10 @@ func main() {
 	// Request logging middleware
 	r.Use(middlewares.RequestLogger())
 
+	// Prometheus metrics middleware
+	r.Use(middlewares.PrometheusMiddleware())
+	r.GET("/metrics", gin.WrapH(promhttp.Handler()))
+
 	// Rate limiter general: 10 req/s, burst 20
 	generalLimiter := middlewares.NewRateLimiter(10, 20)
 	r.Use(generalLimiter.Middleware())
@@ -68,10 +74,10 @@ func main() {
 	v1Group.Static("/static", "./static/temp")
 
 	// Inicializar los componentes de la aplicación
-	userController, authController, videoController, jobController, authService := app.InitializeComponents()
+	userController, authController, videoController, jobController, tagController, authService := app.InitializeComponents()
 
 	// Configurar las rutas
-	routes.SetupRoutes(v1Group, userController, authController, videoController, jobController, authService)
+	routes.SetupRoutes(v1Group, userController, authController, videoController, jobController, tagController, authService)
 	// Configurar la documentación de Swagger
 	r.GET("/docs/*any", ginSwagger.WrapHandler(swaggerfiles.Handler))
 

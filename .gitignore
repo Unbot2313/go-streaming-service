@@ -9,3 +9,5 @@ frontend/
 go-streaming-service
 *.exe
 TODO.md
+
+tmp/

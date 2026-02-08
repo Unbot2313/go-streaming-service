@@ -1,4 +1,4 @@
-.PHONY: build run worker test test-coverage lint swagger docker-build docker-up
+.PHONY: build run worker test test-coverage lint swagger docker-build docker-up migrate-diff migrate-apply migrate-status
 
 build:
 	go build -o bin/server main.go
@@ -28,3 +28,15 @@ docker-build:
 
 docker-up:
 	docker compose up --build
+
+migrate-diff:
+	atlas migrate diff $(name) --env gorm
+
+migrate-apply:
+	atlas migrate apply --env gorm --url "$(DATABASE_URL)"
+
+migrate-baseline:
+	atlas migrate apply --baseline "$(version)" --env gorm --url "$(DATABASE_URL)"
+
+migrate-status:
+	atlas migrate status --env gorm --url "$(DATABASE_URL)"

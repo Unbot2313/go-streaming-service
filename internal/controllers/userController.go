@@ -17,6 +17,8 @@ type UserController interface {
 	GetUserByID(c *gin.Context)
 	GetUserByUserName(c *gin.Context)
 	DeleteUserByID(c *gin.Context)
+	UpdateEmail(c *gin.Context)
+	UpdatePassword(c *gin.Context)
 }
 
 
@@ -96,6 +98,94 @@ func (controller *UserControllerImp) DeleteUserByID(c *gin.Context) {
 
 
 
+
+type UpdateEmailRequest struct {
+	Email string `json:"email" binding:"required,email"`
+}
+
+type UpdatePasswordRequest struct {
+	CurrentPassword string `json:"current_password" binding:"required"`
+	NewPassword     string `json:"new_password" binding:"required,min=8"`
+}
+
+// UpdateEmail godoc
+// @Summary		Update user email
+// @Description	Update the authenticated user's email address
+// @Tags		users
+// @Accept		json
+// @Produce		json
+// @Security	BearerAuth
+// @Param		body body UpdateEmailRequest true "New email"
+// @Success		200 {object} helpers.APIResponse{data=object{message=string}}
+// @Failure		400 {object} helpers.APIResponse{error=helpers.APIError}
+// @Failure		401 {object} helpers.APIResponse{error=helpers.APIError}
+// @Failure		409 {object} helpers.APIResponse{error=helpers.APIError}
+// @Router		/users/email [patch]
+func (controller *UserControllerImp) UpdateEmail(c *gin.Context) {
+	user, exists := c.Get("user")
+	if !exists {
+		helpers.HandleError(c, http.StatusUnauthorized, "Unauthorized", nil)
+		return
+	}
+	authenticatedUser := user.(*models.User)
+
+	var req UpdateEmailRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		helpers.HandleError(c, http.StatusBadRequest, "Valid email is required", err)
+		return
+	}
+
+	err := controller.service.UpdateEmail(authenticatedUser.Id, req.Email)
+	if err != nil {
+		if err.Error() == "email already in use" {
+			helpers.HandleError(c, http.StatusConflict, "Email already in use", err)
+			return
+		}
+		helpers.HandleError(c, http.StatusInternalServerError, "Could not update email", err)
+		return
+	}
+
+	helpers.Success(c, http.StatusOK, gin.H{"message": "Email updated successfully"})
+}
+
+// UpdatePassword godoc
+// @Summary		Update user password
+// @Description	Update the authenticated user's password. Requires current password verification.
+// @Tags		users
+// @Accept		json
+// @Produce		json
+// @Security	BearerAuth
+// @Param		body body UpdatePasswordRequest true "Current and new password"
+// @Success		200 {object} helpers.APIResponse{data=object{message=string}}
+// @Failure		400 {object} helpers.APIResponse{error=helpers.APIError}
+// @Failure		401 {object} helpers.APIResponse{error=helpers.APIError}
+// @Router		/users/password [patch]
+func (controller *UserControllerImp) UpdatePassword(c *gin.Context) {
+	user, exists := c.Get("user")
+	if !exists {
+		helpers.HandleError(c, http.StatusUnauthorized, "Unauthorized", nil)
+		return
+	}
+	authenticatedUser := user.(*models.User)
+
+	var req UpdatePasswordRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		helpers.HandleError(c, http.StatusBadRequest, "current_password and new_password (min 8 chars) are required", err)
+		return
+	}
+
+	err := controller.service.UpdatePassword(authenticatedUser.Id, req.CurrentPassword, req.NewPassword)
+	if err != nil {
+		if err.Error() == "current password is incorrect" {
+			helpers.HandleError(c, http.StatusBadRequest, "Current password is incorrect", err)
+			return
+		}
+		helpers.HandleError(c, http.StatusInternalServerError, "Could not update password", err)
+		return
+	}
+
+	helpers.Success(c, http.StatusOK, gin.H{"message": "Password updated successfully"})
+}
 
 func NewUserController(service services.UserService) UserController {
 	return &UserControllerImp{service: service}

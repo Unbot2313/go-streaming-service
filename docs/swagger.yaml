@@ -1,5 +1,41 @@
 basePath: /api/v1
 definitions:
+  controllers.AddTagsRequest:
+    properties:
+      tags:
+        items:
+          type: string
+        maxItems: 10
+        minItems: 1
+        type: array
+    required:
+    - tags
+    type: object
+  controllers.RemoveTagRequest:
+    properties:
+      tag:
+        type: string
+    required:
+    - tag
+    type: object
+  controllers.UpdateEmailRequest:
+    properties:
+      email:
+        type: string
+    required:
+    - email
+    type: object
+  controllers.UpdatePasswordRequest:
+    properties:
+      current_password:
+        type: string
+      new_password:
+        minLength: 8
+        type: string
+    required:
+    - current_password
+    - new_password
+    type: object
   controllers.UpdateVideoRequest:
     properties:
       description:
@@ -59,6 +95,13 @@ definitions:
         example: ""
         type: string
     type: object
+  models.Tag:
+    properties:
+      id:
+        type: string
+      name:
+        type: string
+    type: object
   models.UserLogin:
     properties:
       password:
@@ -110,6 +153,10 @@ definitions:
         type: string
       id:
         type: string
+      tags:
+        items:
+          $ref: '#/definitions/models.Tag'
+        type: array
       thumbnail:
         type: string
       title:
@@ -131,6 +178,10 @@ definitions:
         type: string
       id:
         type: string
+      tags:
+        items:
+          $ref: '#/definitions/models.Tag'
+        type: array
       thumbnail:
         type: string
       title:
@@ -595,6 +646,59 @@ paths:
       summary: Get latest videos with pagination
       tags:
       - streaming
+  /streaming/search:
+    get:
+      description: Search videos matching a query string in title or description.
+        Supports pagination.
+      parameters:
+      - description: Search query
+        in: query
+        name: q
+        required: true
+        type: string
+      - default: 1
+        description: 'Page number (default: 1)'
+        in: query
+        name: page
+        type: integer
+      - default: 10
+        description: 'Items per page (default: 10, max: 50)'
+        in: query
+        name: page_size
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/helpers.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/services.PaginatedVideos'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            allOf:
+            - $ref: '#/definitions/helpers.APIResponse'
+            - properties:
+                error:
+                  $ref: '#/definitions/helpers.APIError'
+              type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            allOf:
+            - $ref: '#/definitions/helpers.APIResponse'
+            - properties:
+                error:
+                  $ref: '#/definitions/helpers.APIError'
+              type: object
+      summary: Search videos by title or description
+      tags:
+      - streaming
   /streaming/upload:
     post:
       consumes:
@@ -693,6 +797,234 @@ paths:
       summary: Increment the views of a video
       tags:
       - streaming
+  /tags:
+    get:
+      description: Retrieve all available tags sorted alphabetically
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/helpers.APIResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/models.Tag'
+                  type: array
+              type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            allOf:
+            - $ref: '#/definitions/helpers.APIResponse'
+            - properties:
+                error:
+                  $ref: '#/definitions/helpers.APIError'
+              type: object
+      summary: Get all tags
+      tags:
+      - tags
+  /tags/{tag}/videos:
+    get:
+      description: Retrieve videos that have a specific tag. Supports pagination.
+      parameters:
+      - description: Tag name
+        in: path
+        name: tag
+        required: true
+        type: string
+      - default: 1
+        description: 'Page number (default: 1)'
+        in: query
+        name: page
+        type: integer
+      - default: 10
+        description: 'Items per page (default: 10, max: 50)'
+        in: query
+        name: page_size
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/helpers.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/services.PaginatedVideos'
+              type: object
+        "404":
+          description: Not Found
+          schema:
+            allOf:
+            - $ref: '#/definitions/helpers.APIResponse'
+            - properties:
+                error:
+                  $ref: '#/definitions/helpers.APIError'
+              type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            allOf:
+            - $ref: '#/definitions/helpers.APIResponse'
+            - properties:
+                error:
+                  $ref: '#/definitions/helpers.APIError'
+              type: object
+      summary: Get videos by tag
+      tags:
+      - tags
+  /tags/{videoid}:
+    delete:
+      consumes:
+      - application/json
+      description: Remove a specific tag from a video. Only the video owner can remove
+        tags.
+      parameters:
+      - description: Video ID
+        in: path
+        name: videoid
+        required: true
+        type: string
+      - description: Tag to remove
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/controllers.RemoveTagRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/helpers.APIResponse'
+            - properties:
+                data:
+                  properties:
+                    message:
+                      type: string
+                  type: object
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            allOf:
+            - $ref: '#/definitions/helpers.APIResponse'
+            - properties:
+                error:
+                  $ref: '#/definitions/helpers.APIError'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            allOf:
+            - $ref: '#/definitions/helpers.APIResponse'
+            - properties:
+                error:
+                  $ref: '#/definitions/helpers.APIError'
+              type: object
+        "403":
+          description: Forbidden
+          schema:
+            allOf:
+            - $ref: '#/definitions/helpers.APIResponse'
+            - properties:
+                error:
+                  $ref: '#/definitions/helpers.APIError'
+              type: object
+        "404":
+          description: Not Found
+          schema:
+            allOf:
+            - $ref: '#/definitions/helpers.APIResponse'
+            - properties:
+                error:
+                  $ref: '#/definitions/helpers.APIError'
+              type: object
+      security:
+      - BearerAuth: []
+      summary: Remove a tag from a video
+      tags:
+      - tags
+    post:
+      consumes:
+      - application/json
+      description: Add one or more tags to a video. Only the video owner can add tags.
+        Tags are created if they don't exist.
+      parameters:
+      - description: Video ID
+        in: path
+        name: videoid
+        required: true
+        type: string
+      - description: Tags to add
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/controllers.AddTagsRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/helpers.APIResponse'
+            - properties:
+                data:
+                  properties:
+                    message:
+                      type: string
+                  type: object
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            allOf:
+            - $ref: '#/definitions/helpers.APIResponse'
+            - properties:
+                error:
+                  $ref: '#/definitions/helpers.APIError'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            allOf:
+            - $ref: '#/definitions/helpers.APIResponse'
+            - properties:
+                error:
+                  $ref: '#/definitions/helpers.APIError'
+              type: object
+        "403":
+          description: Forbidden
+          schema:
+            allOf:
+            - $ref: '#/definitions/helpers.APIResponse'
+            - properties:
+                error:
+                  $ref: '#/definitions/helpers.APIError'
+              type: object
+        "404":
+          description: Not Found
+          schema:
+            allOf:
+            - $ref: '#/definitions/helpers.APIResponse'
+            - properties:
+                error:
+                  $ref: '#/definitions/helpers.APIError'
+              type: object
+      security:
+      - BearerAuth: []
+      summary: Add tags to a video
+      tags:
+      - tags
   /users/{UserId}:
     delete:
       description: Delete user by ID. Only the owner can delete their own account.
@@ -749,6 +1081,65 @@ paths:
       summary: Delete user by ID
       tags:
       - users
+  /users/email:
+    patch:
+      consumes:
+      - application/json
+      description: Update the authenticated user's email address
+      parameters:
+      - description: New email
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/controllers.UpdateEmailRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/helpers.APIResponse'
+            - properties:
+                data:
+                  properties:
+                    message:
+                      type: string
+                  type: object
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            allOf:
+            - $ref: '#/definitions/helpers.APIResponse'
+            - properties:
+                error:
+                  $ref: '#/definitions/helpers.APIError'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            allOf:
+            - $ref: '#/definitions/helpers.APIResponse'
+            - properties:
+                error:
+                  $ref: '#/definitions/helpers.APIError'
+              type: object
+        "409":
+          description: Conflict
+          schema:
+            allOf:
+            - $ref: '#/definitions/helpers.APIResponse'
+            - properties:
+                error:
+                  $ref: '#/definitions/helpers.APIError'
+              type: object
+      security:
+      - BearerAuth: []
+      summary: Update user email
+      tags:
+      - users
   /users/id/{UserId}:
     get:
       description: Search user by ID in Db
@@ -780,6 +1171,57 @@ paths:
                   $ref: '#/definitions/helpers.APIError'
               type: object
       summary: Get user by ID
+      tags:
+      - users
+  /users/password:
+    patch:
+      consumes:
+      - application/json
+      description: Update the authenticated user's password. Requires current password
+        verification.
+      parameters:
+      - description: Current and new password
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/controllers.UpdatePasswordRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/helpers.APIResponse'
+            - properties:
+                data:
+                  properties:
+                    message:
+                      type: string
+                  type: object
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            allOf:
+            - $ref: '#/definitions/helpers.APIResponse'
+            - properties:
+                error:
+                  $ref: '#/definitions/helpers.APIError'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            allOf:
+            - $ref: '#/definitions/helpers.APIResponse'
+            - properties:
+                error:
+                  $ref: '#/definitions/helpers.APIError'
+              type: object
+      security:
+      - BearerAuth: []
+      summary: Update user password
       tags:
       - users
   /users/username/{userName}:

@@ -11,7 +11,7 @@ import (
 )
 
 // SetupRoutes configura todas las rutas
-func SetupRoutes(router *gin.RouterGroup, userController controllers.UserController, authController controllers.AuthController, videoController controllers.VideoController, jobController controllers.JobController, authService services.AuthService) {
+func SetupRoutes(router *gin.RouterGroup, userController controllers.UserController, authController controllers.AuthController, videoController controllers.VideoController, jobController controllers.JobController, tagController controllers.TagController, authService services.AuthService) {
 	// Middleware de autenticación (una sola instancia reutilizada)
 	authMiddleware := middlewares.AuthMiddleware(authService)
 
@@ -26,6 +26,8 @@ func SetupRoutes(router *gin.RouterGroup, userController controllers.UserControl
 		protectedUserRoutes := userRoutes.Group("")
 		protectedUserRoutes.Use(authMiddleware)
 		protectedUserRoutes.DELETE("/:id", userController.DeleteUserByID)
+		protectedUserRoutes.PATCH("/email", userController.UpdateEmail)
+		protectedUserRoutes.PATCH("/password", userController.UpdatePassword)
 	}
 
 	// Rutas de autenticación
@@ -50,6 +52,7 @@ func SetupRoutes(router *gin.RouterGroup, userController controllers.UserControl
 
 		// Rutas públicas
         VideoRoutes.GET("/latest", videoController.GetLatestVideos)
+		VideoRoutes.GET("/search", videoController.SearchVideos)
 		VideoRoutes.GET("/id/:videoid", videoController.GetVideoByID)
 		VideoRoutes.PATCH("/views/:videoid", videoController.IncrementViews)
 
@@ -64,5 +67,19 @@ func SetupRoutes(router *gin.RouterGroup, userController controllers.UserControl
 	jobRoutes.Use(authMiddleware)
 	{
 		jobRoutes.GET("/:jobid", jobController.GetJobByID)
+	}
+
+	// Rutas de tags
+	tagRoutes := router.Group("/tags")
+	{
+		// Rutas públicas
+		tagRoutes.GET("", tagController.GetAllTags)
+		tagRoutes.GET("/:tag/videos", tagController.GetVideosByTag)
+
+		// Rutas protegidas (solo el owner del video puede agregar/quitar tags)
+		protectedTagRoutes := tagRoutes.Group("")
+		protectedTagRoutes.Use(authMiddleware)
+		protectedTagRoutes.POST("/:videoid", tagController.AddTagsToVideo)
+		protectedTagRoutes.DELETE("/:videoid", tagController.RemoveTagFromVideo)
 	}
 }

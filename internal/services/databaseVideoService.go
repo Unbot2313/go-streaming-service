@@ -9,6 +9,30 @@ import (
 	"gorm.io/gorm"
 )
 
+type databaseVideoService struct{}
+
+type PaginatedVideos struct {
+	Data     []*models.VideoModel `json:"data"`
+	Page     int                  `json:"page"`
+	PageSize int                  `json:"page_size"`
+	Total    int64                `json:"total"`
+}
+
+type DatabaseVideoService interface {
+	FindLatestVideos(page, pageSize int) (*PaginatedVideos, error)
+	FindVideoByID(videoId string) (*models.VideoModel, error)
+	IncrementViews(videoId string) (*models.VideoModel, error)
+	FindUserVideos(userId string) ([]*models.VideoModel, error)
+	CreateVideo(video *models.Video, userId string) (*models.VideoModel, error)
+	UpdateVideo(video *models.VideoModel) (*models.VideoModel, error)
+	DeleteVideo(videoId string) error
+	SearchVideos(query string, page, pageSize int) (*PaginatedVideos, error)
+}
+
+func NewDatabaseVideoService() DatabaseVideoService {
+	return &databaseVideoService{}
+}
+
 func (service *databaseVideoService) FindLatestVideos(page, pageSize int) (*PaginatedVideos, error) {
 	db, err := config.GetDB()
 	if err != nil {
@@ -114,15 +138,15 @@ func (service *databaseVideoService) FindUserVideos(userId string) ([]*models.Vi
 func (service *databaseVideoService) CreateVideo(videoData *models.Video, userId string) (*models.VideoModel, error) {
 
 	Video := models.VideoModel{
-		Id: videoData.Id,
-		Title: videoData.Title,
-		Description: videoData.Description,
-		UserID: userId,
-		VideoUrl: videoData.M3u8FileURL,
-		Duration: videoData.Duration,
+		Id:           videoData.Id,
+		Title:        videoData.Title,
+		Description:  videoData.Description,
+		UserID:       userId,
+		VideoUrl:     videoData.M3u8FileURL,
+		Duration:     videoData.Duration,
 		ThumbnailURL: videoData.ThumbnailURL,
 	}
-	
+
 	db, err := config.GetDB()
 
 	if err != nil {
@@ -138,7 +162,7 @@ func (service *databaseVideoService) CreateVideo(videoData *models.Video, userId
 	if dbCtx.Error != nil {
 		return nil, dbCtx.Error
 	}
-	
+
 	return &Video, nil
 }
 
@@ -184,26 +208,36 @@ func (service *databaseVideoService) DeleteVideo(videoId string) error {
 	return nil
 }
 
+func (service *databaseVideoService) SearchVideos(query string, page, pageSize int) (*PaginatedVideos, error) {
+	db, err := config.GetDB()
+	if err != nil {
+		return nil, err
+	}
 
-type databaseVideoService struct {}
+	search := "%" + query + "%"
 
-type PaginatedVideos struct {
-	Data     []*models.VideoModel `json:"data"`
-	Page     int                  `json:"page"`
-	PageSize int                  `json:"page_size"`
-	Total    int64                `json:"total"`
-}
+	var total int64
+	if err := db.Model(&models.VideoModel{}).
+		Where("title ILIKE ? OR description ILIKE ?", search, search).
+		Count(&total).Error; err != nil {
+		return nil, err
+	}
 
-type DatabaseVideoService interface {
-	FindLatestVideos(page, pageSize int) (*PaginatedVideos, error)
-	FindVideoByID(videoId string) (*models.VideoModel, error) 
-	IncrementViews(videoId string) (*models.VideoModel, error)
-	FindUserVideos(userId string) ([]*models.VideoModel, error)
-	CreateVideo(video *models.Video, userId string) (*models.VideoModel, error)
-	UpdateVideo(video *models.VideoModel) (*models.VideoModel, error)
-	DeleteVideo(videoId string) error
-}
+	var videos []*models.VideoModel
+	offset := (page - 1) * pageSize
 
-func NewDatabaseVideoService() DatabaseVideoService {
-	return &databaseVideoService{}
+	if err := db.Where("title ILIKE ? OR description ILIKE ?", search, search).
+		Order("created_at DESC").
+		Limit(pageSize).
+		Offset(offset).
+		Find(&videos).Error; err != nil {
+		return nil, err
+	}
+
+	return &PaginatedVideos{
+		Data:     videos,
+		Page:     page,
+		PageSize: pageSize,
+		Total:    total,
+	}, nil
 }

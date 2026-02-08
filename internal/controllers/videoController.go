@@ -20,6 +20,7 @@ type VideoController interface {
 	IncrementViews(c *gin.Context)
 	UpdateVideo(c *gin.Context)
 	DeleteVideo(c *gin.Context)
+	SearchVideos(c *gin.Context)
 }
 
 // CreateVideoRequest valida los campos del formulario de upload
@@ -322,6 +323,47 @@ func (vc *VideoControllerImpl) DeleteVideo(c *gin.Context) {
 	}
 
 	helpers.Success(c, http.StatusOK, gin.H{"message": "Video deleted successfully"})
+}
+
+// SearchVideos godoc
+// @Summary		Search videos by title or description
+// @Description	Search videos matching a query string in title or description. Supports pagination.
+// @Tags		streaming
+// @Produce		json
+// @Param		q query string true "Search query"
+// @Param		page query int false "Page number (default: 1)" default(1)
+// @Param		page_size query int false "Items per page (default: 10, max: 50)" default(10)
+// @Success		200 {object} helpers.APIResponse{data=services.PaginatedVideos}
+// @Failure		400 {object} helpers.APIResponse{error=helpers.APIError}
+// @Failure		500 {object} helpers.APIResponse{error=helpers.APIError}
+// @Router		/streaming/search [get]
+func (vc *VideoControllerImpl) SearchVideos(c *gin.Context) {
+	query := c.Query("q")
+	if query == "" {
+		helpers.HandleError(c, http.StatusBadRequest, "Query parameter 'q' is required", nil)
+		return
+	}
+
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "10"))
+
+	if page < 1 {
+		page = 1
+	}
+	if pageSize < 1 {
+		pageSize = 10
+	}
+	if pageSize > 50 {
+		pageSize = 50
+	}
+
+	result, err := vc.databaseVideoService.SearchVideos(query, page, pageSize)
+	if err != nil {
+		helpers.HandleError(c, http.StatusInternalServerError, "Could not search videos", err)
+		return
+	}
+
+	helpers.Success(c, http.StatusOK, result)
 }
 
 type VideoControllerImpl struct {
