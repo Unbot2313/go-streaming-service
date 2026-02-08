@@ -219,6 +219,15 @@ Or using the Makefile:
 make swagger
 ```
 
+## CI
+
+GitHub Actions runs automatically on every push and pull request to `main` and `develop`. The pipeline validates:
+
+1. **Dependencies** - `go mod download`
+2. **Lint** - `go vet ./...`
+3. **Build** - `go build ./...`
+4. **Tests** - `go test ./... -race -v`
+
 ## Contributing
 
 Contributions are welcome!
