@@ -39,7 +39,7 @@ services:
     command: server /data --console-address ":9001"
     restart: always
 
-  app:
+  api:
     build:
       context: .
       dockerfile: Dockerfile
@@ -71,7 +71,37 @@ services:
       retries: 3
       start_period: 10s
 
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus_container
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    depends_on:
+      - api
+    restart: always
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana_container
+    ports:
+      - "3001:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD}
+    depends_on:
+      - prometheus
+    restart: always
+
 volumes:
   postgres_data:
   rabbitmq_data:
   minio_data:
+  prometheus_data:
+  grafana_data:

@@ -16,6 +16,8 @@ import (
 	"github.com/unbot2313/go-streaming-service/internal/middlewares"
 	"github.com/unbot2313/go-streaming-service/internal/routes"
 	"github.com/unbot2313/go-streaming-service/internal/services"
+
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 // @title Go Streaming Service API
@@ -47,6 +49,10 @@ func main() {
 
 	// Request logging middleware
 	r.Use(middlewares.RequestLogger())
+
+	// Prometheus metrics middleware
+	r.Use(middlewares.PrometheusMiddleware())
+	r.GET("/metrics", gin.WrapH(promhttp.Handler()))
 
 	// Rate limiter general: 10 req/s, burst 20
 	generalLimiter := middlewares.NewRateLimiter(10, 20)
