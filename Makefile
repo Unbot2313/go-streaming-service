@@ -35,5 +35,8 @@ migrate-diff:
 migrate-apply:
 	atlas migrate apply --env gorm --url "$(DATABASE_URL)"
 
+migrate-baseline:
+	atlas migrate apply --baseline "$(version)" --env gorm --url "$(DATABASE_URL)"
+
 migrate-status:
 	atlas migrate status --env gorm --url "$(DATABASE_URL)"
