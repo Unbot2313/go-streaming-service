@@ -1,12 +1,20 @@
-# How to start the proyect
+# Go Streaming Service
 
-Este es un proyecto de servicio de streaming construído en Go. Permite transmitir contenido multimedia utilizando AWS para la gestión de archivos y PostgreSQL para manejar la información de usuarios y videos. Además, soporta Docker para facilitar su despliegue en entornos locales y de producción.
+A multimedia streaming backend built with Go that enables video upload, asynchronous processing (HLS conversion via ffmpeg), and streaming. Uses RabbitMQ for job queuing, PostgreSQL for data persistence, and supports both AWS S3 and MinIO for storage.
 
 ## Tech Stack
 
-**Client:** React, TailwindCSS
-
-**Server:** Golang, Gin, AWS, Postgresql
+- **Language:** Go 1.24
+- **Framework:** Gin
+- **Database:** PostgreSQL + GORM
+- **Migrations:** Atlas
+- **Queue:** RabbitMQ
+- **Storage:** AWS S3 / MinIO
+- **Auth:** JWT (HS256) + bcrypt
+- **Media Processing:** ffmpeg / ffprobe
+- **Monitoring:** Prometheus + Grafana
+- **Logging:** slog (structured logging)
+- **Docs:** Swagger (swag)
 
 ## Architecture
 
@@ -14,7 +22,7 @@ Este es un proyecto de servicio de streaming construído en Go. Permite transmit
 
 ### Request Flow
 ```
-HTTP Request → Gin Router → Middlewares (CORS, Auth) → Controllers → Services → Data Layer (GORM/S3)
+HTTP Request -> Gin Router -> Middlewares (CORS, Auth, RateLimit) -> Controllers -> Services -> Data Layer (GORM/S3)
 ```
 
 ### Video Processing Pipeline
@@ -25,102 +33,206 @@ HTTP Request → Gin Router → Middlewares (CORS, Auth) → Controllers → Ser
 5. Worker saves video metadata to PostgreSQL and updates job status to "completed"
 6. Client queries job status (`GET /api/v1/jobs/:id`) and streams the video once ready
 
-## Requerimientos
+## Features
 
-Para utilizar este proyecto, necesitas:
+- Asynchronous video processing with RabbitMQ workers (HLS conversion + thumbnail generation)
+- JWT authentication with refresh tokens and logout
+- Video tagging system (many-to-many)
+- Video search with pagination
+- Rate limiting per IP (Token Bucket algorithm)
+- Monitoring with Prometheus metrics and Grafana dashboards
+- Structured logging with slog
+- Health check and readiness endpoints
+- Swagger API documentation
+- Declarative database migrations with Atlas
 
-### Obligatorios
+## Requirements
 
-- **Git**: Para clonar el repositorio.
-- **Go**: Para ejecutar y compilar el proyecto. (Versión recomendada: 1.24.0, utilizada en el `go.mod`).
-- **Atlas**: Para gestionar migraciones de base de datos. [Instalacion](https://atlasgo.io/getting-started#installation).
+- **Git**
+- **Docker** and **Docker Compose** (recommended)
 
-### Opcionales
+Or, to run without Docker:
 
-- **Docker**: Para contenerizar la aplicación.
-- **Docker Compose**: Para orquestar servicios si se utiliza Docker.
+- **Go** 1.24+
+- **PostgreSQL** 15+
+- **RabbitMQ** 3+
+- **MinIO** or **AWS S3** account
+- **ffmpeg** and **ffprobe** installed
+- **Atlas** CLI - [Installation](https://atlasgo.io/getting-started#installation)
 
 ## Installation
 
 ```bash
-  git clone https://github.com/Unbot2313/go-streaming-service.git
-  cd go-streaming-service/
+git clone https://github.com/Unbot2313/go-streaming-service.git
+cd go-streaming-service/
 ```
 
-## Usage/Examples
+## Environment Variables
 
-Para usarla con Go!:
+Create a `.env` file based on `.env.example`:
 
 ```bash
-    go mod tidy
-    go run main.go
+cp .env.example .env
 ```
 
-Con docker(incluye la instancia de postgresql en local):
+Then edit `.env` with your values. Example for local development with Docker:
+
+```env
+PORT=3003
+JWT_SECRET_KEY=your-secret-key-must-be-at-least-32-characters-long
+LOCAL_STORAGE_PATH=./static/videos
+
+CORS_ALLOWED_ORIGINS=http://localhost:3000
+
+POSTGRES_HOST=localhost
+POSTGRES_PORT=5432
+POSTGRES_USER=postgres
+POSTGRES_PASSWORD=postgres
+POSTGRES_DB=streaming_db
+
+STORAGE_TYPE=minio
+
+MINIO_ENDPOINT=localhost:9000
+MINIO_BUCKET_NAME=streaming-videos
+MINIO_ACCESS_KEY=minioadmin
+MINIO_SECRET_KEY=minioadmin
+
+RABBITMQ_HOST=localhost
+RABBITMQ_PORT=5672
+RABBITMQ_USER=guest
+RABBITMQ_PASSWORD=guest
+RABBITMQ_VIDEO_QUEUE=video_processing
+RABBITMQ_THUMBNAIL_QUEUE=thumbnail_generation
+
+GRAFANA_ADMIN_USER=admin
+GRAFANA_ADMIN_PASSWORD=admin
+```
+
+For AWS S3 storage or other configurations, see all available variables in `.env.example`.
+
+### Validations
+
+| Variable | Rule |
+|----------|------|
+| `JWT_SECRET_KEY` | **Required**. Must be at least 32 characters. The app will panic on startup if missing or too short. |
+| `POSTGRES_PASSWORD` | Warns if set to default `postgres` |
+| `RABBITMQ_PASSWORD` | Warns if set to default `guest` |
+| `STORAGE_TYPE` | `minio` for local development, `s3` for production |
+| `GRAFANA_*` | Only used by docker-compose, does not affect the Go app |
+
+## Running with Docker (Recommended)
+
+This starts PostgreSQL, RabbitMQ, MinIO, the API server, Prometheus, and Grafana:
 
 ```bash
-    docker compose up --build
+docker compose up --build
+```
+
+The API server runs automatically. To also run the **video processing worker**, open a separate terminal:
+
+```bash
+docker exec -it go_streaming_service go run cmd/rabbitmq/consumer/main.go
+```
+
+## Running with Go
+
+Make sure PostgreSQL, RabbitMQ, and MinIO (or S3) are running and accessible with the credentials in your `.env`.
+
+```bash
+go mod tidy
+go run main.go
+```
+
+In a separate terminal, start the worker:
+
+```bash
+go run cmd/rabbitmq/consumer/main.go
+```
+
+Or using the Makefile:
+
+```bash
+make run      # API server
+make worker   # Video processing worker
 ```
 
 ## Database Migrations
 
-El proyecto usa [Atlas](https://atlasgo.io/) para migraciones declarativas. Atlas lee los modelos GORM y genera archivos SQL versionados automaticamente.
+The project uses [Atlas](https://atlasgo.io/) for declarative database migrations. Atlas reads the GORM models and generates versioned SQL files.
+
+### First time setup
+
+If the database is empty (fresh install), apply all migrations:
 
 ```bash
-# Generar una migracion despues de modificar un modelo
+make migrate-apply DATABASE_URL="postgres://postgres:postgres@localhost:5432/streaming_db?sslmode=disable"
+```
+
+If the database already has tables (e.g. from a previous version using AutoMigrate), use baseline to mark existing migrations as applied without running them:
+
+```bash
+make migrate-baseline version=20260207231247 DATABASE_URL="postgres://postgres:postgres@localhost:5432/streaming_db?sslmode=disable"
+```
+
+### After modifying a model
+
+```bash
+# Generate a new migration
 make migrate-diff name=describe_change
 
-# Aplicar migraciones pendientes
-make migrate-apply DATABASE_URL="postgres://user:pass@localhost:5432/dbname?sslmode=disable"
+# Review the generated SQL in migrations/
 
-# Ver estado de migraciones
-make migrate-status DATABASE_URL="postgres://user:pass@localhost:5432/dbname?sslmode=disable"
+# Apply the new migration
+make migrate-apply DATABASE_URL="postgres://postgres:postgres@localhost:5432/streaming_db?sslmode=disable"
+
+# Check migration status
+make migrate-status DATABASE_URL="postgres://postgres:postgres@localhost:5432/streaming_db?sslmode=disable"
 ```
+
+## Local URLs
+
+When running with Docker:
+
+| Service | URL | Credentials |
+|---------|-----|-------------|
+| API | http://localhost:3003 | - |
+| Swagger Docs | http://localhost:3003/docs/index.html | - |
+| Grafana | http://localhost:3001 | `GRAFANA_ADMIN_USER` / `GRAFANA_ADMIN_PASSWORD` from `.env` |
+| Prometheus | http://localhost:9090 | No auth |
+| RabbitMQ Management | http://localhost:15672 | `RABBITMQ_USER` / `RABBITMQ_PASSWORD` from `.env` |
+| MinIO Console | http://localhost:9001 | `MINIO_ACCESS_KEY` / `MINIO_SECRET_KEY` from `.env` |
+
+## API Documentation
+
+Interactive API docs are available at `/docs/index.html` when the server is running.
+
+To update the documentation after modifying controller annotations:
+
+```bash
+go install github.com/swaggo/swag/cmd/swag@latest
+swag init
+```
+
+Or using the Makefile:
+
+```bash
+make swagger
+```
+
+## CI
+
+GitHub Actions runs automatically on every push and pull request to `main` and `develop`. The pipeline validates:
+
+1. **Dependencies** - `go mod download`
+2. **Lint** - `go vet ./...`
+3. **Build** - `go build ./...`
+4. **Tests** - `go test ./... -race -v`
 
 ## Contributing
 
-Contributions are always welcome!
+Contributions are welcome!
 
-Please star a new fork, then make a pull request
-
-In case of change the documentation make that:
-
-```bash
-    go install github.com/go-swagger/go-swagger/cmd/swagger@latest
-    swag init #update the documentation from the swagger
-```
-
-## Rate Limiting
-
-Uses the **Token Bucket** algorithm (`golang.org/x/time/rate`) to control request rates per client IP.
-
-### How it works
-- A "bucket" fills with tokens at a constant rate
-- Each request consumes 1 token
-- If the bucket is empty, the request is rejected with HTTP 429 (Too Many Requests)
-- Tokens accumulate up to a maximum (burst), allowing short traffic spikes
-
-### Current configuration
-
-| Scope | Rate | Burst | Description |
-|-------|------|-------|-------------|
-| General (all routes) | 10 tokens/sec | 20 | Normal usage, allows short bursts |
-| Auth (`/login`, `/register`) | 1 token every 20s | 3 | Brute force protection |
-
-### Customization
-Rate limits are configured in code:
-- **General**: `main.go` - `middlewares.NewRateLimiter(10, 20)`
-- **Auth**: `internal/routes/routes.go` - `middlewares.NewRateLimiter(rate.Every(20*time.Second), 3)`
-
-To change limits, modify the two parameters: `rate` (tokens per second or interval) and `burst` (max accumulated tokens).
-
-### Scaling note
-The rate limiter stores counters in memory per server instance. If deploying multiple instances (e.g. Kubernetes), each instance tracks independently. For distributed rate limiting, replace with a Redis-backed solution like `github.com/ulule/limiter`.
-
-## Features
-
-- Manejar la carga de videos usando algun servicio de background jobs e implementar su visualizacion de progreso
-- RefreshTokens
-- Manejar transmision en vivos
-- Terminar el README.md
-- Optimizar el dockerFile
+1. Fork the repository
+2. Create a branch based on `develop` (`git checkout -b feat/my-feature develop`)
+3. Commit your changes
+4. Push to your fork and open a Pull Request against `develop`
